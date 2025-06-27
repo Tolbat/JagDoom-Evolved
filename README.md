@@ -1,6 +1,6 @@
 # JagDoom Evolved
 JagDoom Evolved src
-An Enhanced version of the Atari Jaguar Doom
+an Enhanced version of the Atari Jaguar Doom
 To use this src folder you must have the JagDoomE Project set up for Windows.  
 Welcome to Jaguar Doom Evolved for the Atari Jaguar 64-bit video game system.  
 This is a quality-of-life Improvement for the original game.
