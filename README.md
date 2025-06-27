@@ -5,7 +5,8 @@ To use this src folder you must have the JagDoomE Project set up for Windows.
 Welcome to Jaguar Doom Evolved for the Atari Jaguar 64-bit video game system.  
 This is a quality-of-life Improvement for the original game.
 
-# It currently features:  6 button controller support, Translucent Spectres, Music in game, CRT (only) widescreen on/off in the Options menu, new HUD, and some bug fixes.
+# It currently features:  
+6 button controller support, Translucent Spectres, Music in game, CRT (only) widescreen on/off in the Options menu, new HUD, and some bug fixes.
 
 # Planned additions include:  
 Mouse Support (Dependent on Chilly finishing the code), Rotary Controller support (for fun), different HUD options, Music selection and or changer, multiple controller options, spectre options for different spectre mobs, and maybe more.  
