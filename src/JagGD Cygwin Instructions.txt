@@ -1,0 +1,45 @@
+Before beginning please download the Open Jaguar GD source and compile the jaggd.exe and ensure it is placed in C:/Jaguar/src
+https://github.com/cubanismo/open_jaggd
+Special thanks to James Jones aka cubanismo
+
+NO MORE EMULATORS
+
+This section of the makefile uses jaggd.exe to load the abs to $2000,
+then load the wad file to $840000, 
+Starts executing from $2000. When I get an
+
+You cannot run this in cmd, or DOSBOX
+
+Please download Cygwin for windows with the following ADD ONS:
+gcc-core → Select for installation (C Compiler)
+gcc-g++ → Select for installation (C++ Compiler)
+make → Select for installation
+git → (Optional, if you want to clone repositories)
+
+
+Once installed verify the version in Cygwin
+gcc --version
+g++ --version
+make --version
+git --version
+
+Compile Doom.abs only using the original method and ensure it is in the src folder.
+Ensure Doom.wad is in the src folder.
+
+Power on your Jaguar
+Connect the Gamedrive to a USB port on your computer (ensure the cable is a data cable)
+Wait for the USB to be detected and installed
+
+Load Cygwin
+cd /cygdrive/c/Jaguar/src											this puts you in the correct directory if it matches mine
+
+/cygdrive/c/Jaguar/src/JagGD.exe -rd								resets Jaguar / Gamedrive
+/cygdrive/c/Jaguar/src/JagGD.exe -u DOOM.ABS,a:0x2000				loads ABS to address
+/cygdrive/c/Jaguar/src/JagGD.exe -u doom.wad,a:0x840000				loads WAD to address
+/cygdrive/c/Jaguar/src/JagGD.exe -x 0x2000							loads the game at the address
+
+You are no longer bound to develop on the Jaguar with an emulator 
+
+Enjoy - also look in src, i 'accidentally' left the jaggd file in :P
+
+
