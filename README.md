@@ -13,7 +13,7 @@ Mouse Support (Dependent on Chilly finishing the code), Rotary Controller suppor
 
 # Please visit my YouTube channel:
 @Tolbat - https://www.youtube.com/@Tolbat 
-https://www.patreon.com/c/Tolbat
+or here https://www.patreon.com/c/Tolbat
 and watch this playlist where you can view the true history of the JagDoomEx and JagDoomE project's birth and those involved.  
 https://www.youtube.com/playlist?list=PLQPynO6SFxtJVDYdXUeDypRT5a7ZGE-c9  
 
