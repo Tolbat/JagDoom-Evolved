@@ -43,7 +43,7 @@ static int credit2_y;
 static jagobj_t *credit2_endobj[CREDIT_NUMENDOBJ];
 static char credit2_text[] =
     " jaguar doom evolved**"
-    "       develop[ed by*"
+    "       developled by*"
     "        aaron jones*"
     "            tolbat**"
 	"  directed by jagchris**"
