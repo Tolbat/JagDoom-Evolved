@@ -3,7 +3,10 @@
 #include "doomdef.h" 
 #include "r_local.h"
 
-
+extern int dsp_should_wait;
+#ifndef DSP_WAIT_SOFTCAP
+#define DSP_WAIT_SOFTCAP 0x40000   /*step down test to reduce lag.  0x30000 first, then 0x28000, then 0x20000  */
+#endif	  
 unsigned	BT_ATTACK = BT_B;
 unsigned	BT_USE = BT_C;
 unsigned	BT_STRAFE =	BT_C;
@@ -28,7 +31,7 @@ int			startmap = 3;
 gametype_t	starttype = gt_single;
 
 /* RunCredits2 declarations */
-#define CREDIT_TEXT_TIME 6      /* Tics per character, slowed to 6 */
+#define CREDIT_TEXT_TIME 4      /* Tics per character, slowed to 6 */
 #define CREDIT_STARTX 8         /* Starting X position */
 #define CREDIT_STARTY 8         /* Starting Y position */
 #define CREDIT_NUMENDOBJ 28     /* Number of big font sprites (a-z, .!) */
@@ -39,14 +42,14 @@ static int credit2_x;
 static int credit2_y;
 static jagobj_t *credit2_endobj[CREDIT_NUMENDOBJ];
 static char credit2_text[] =
-    "  jaguar doom evolved**"
-    "   produced by*"
-    "       aaron jones**"
-    "   lead developer*"
-    "       joseph fenton**"
-	"  director jagchris**"
-	"  special thanks to*"
-    "  mikes gaming gala*";
+    " jaguar doom evolved**"
+    "       develop[ed by*"
+    "        aaron jones*"
+    "            tolbat**"
+	"  directed by jagchris**"
+	"    special thanks to*"
+    "         joe fenton*"
+	"             chilly*";
 
 /*============================================================================ */
 
@@ -262,7 +265,7 @@ unsigned GetDemoCmd (void)
 }
  
 /*=============================================================================  */
- 
+
 extern	int	lasttics;
 
 mobj_t	emptymobj;
@@ -280,6 +283,7 @@ int MiniLoop ( void (*start)(void),  void (*stop)(void)
 {
     int		exit;
     int		buttons;
+	int __dsp_wait_guard;    /* for guarded DSP wait */												
         
     /* setup (cache graphics, etc) */
     start ();
@@ -358,9 +362,20 @@ int MiniLoop ( void (*start)(void),  void (*stop)(void)
 while (!I_RefreshCompleted ())
 ;	/* DEBUG */
 #endif
+/* Guarded DSP wait: only if SFX mixed this frame */
+if (dsp_should_wait && DSPRead(&dspfinished) != 0xdef6)
+{
+    __dsp_wait_guard = 0;
 
-        while ( DSPRead(&dspfinished) != 0xdef6 )
-        ;
+    while (DSPRead(&dspfinished) != 0xdef6)
+    {
+        if (++__dsp_wait_guard > DSP_WAIT_SOFTCAP)
+        {
+            /* Soft fail, skip further waiting */
+            break;
+        }
+    }
+}
 
     } while (!exit);
 
@@ -418,6 +433,7 @@ int TIC_Abortable (void)
 
 /*============================================================================= */
 
+jagobj_t	*titlepic;				   
 void START_Title (void)
 {
     backgroundpic = (jagobj_t *)W_POINTLUMPNUM(W_GetNumForName("M_TITLE"));
@@ -649,7 +665,6 @@ reselect:
 void DM_main (void);
  
 void testgpu (void);
-
 void D_DoomMain (void) 
 {    
 D_printf ("C_Init\n");
