@@ -1,9 +1,10 @@
-Use Lunar IPS Patcher
+Use Lunar IPS Patcher - https://www.romhacking.net/utilities/240/
 
 USE ONLY THIS ROM - this is the legit original
 Doom - Evil Unleashed (1994).jag
 
 Patch it with
 JagDoomEvolved.ips
+
 
 Enjoy
