@@ -1,7 +1,9 @@
-Future home of IPS patch releases
+Use Lunar IPS Patcher
 
-These are all WIP
+USE ONLY THIS ROM - this is the legit original
+Doom - Evil Unleashed (1994).jag
 
-Open Source
+Patch it with
+JagDoomEvolved.ips
 
-Give the Original Creators Credit or you are a CJ
+Enjoy
