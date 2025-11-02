@@ -7,7 +7,7 @@ This is a quality-of-life Improvement for the original game.
 BigPEmu - works flawlessly.  Settings: Blitter Slow or Slower - if not changed games runs too fast, but is playable (all Jaguar Doom games are like this on BigPEmu)
 
 # It currently features:  
-Improved performance of music and sound on console (still some lag wip), added menu options for HUD, Mouse, and Rotary (not functioning)6 button controller support, Translucent Spectres, Music in game, CRT (only) widescreen on/off in the Options menu, new HUD, and some bug fixes.
+Very slight increase in performance of music and sound on console (still some lag wip), added menu options for HUD, Mouse, and Rotary (not functioning)6 button controller support, Translucent Spectres, Music in game, CRT (only) widescreen on/off in the Options menu, new HUD, and some bug fixes.
 
 # Planned additions include:  
 Mouse Support (Dependent on Chilly finishing the code), Rotary Controller support (for fun), different HUD options, Music selection and or changer, multiple controller options, spectre options for different spectre mobs, and maybe more.  
