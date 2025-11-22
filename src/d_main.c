@@ -17,7 +17,7 @@ int			gamevbls;				/* may not really be vbls in multiplayer */
 int			vblsinframe;			/* range from 4 to 8 */
 int			maxlevel;				/* highest level selectable in menu (1-25) */
 jagobj_t	*backgroundpic;
-int				*demo_p, *demobuffer;
+int			*demo_p, *demobuffer;
 int			ticsinframe;			/* how many tics since last drawer */
 int			ticon;
 int			frameon;
@@ -31,7 +31,7 @@ int			startmap = 3;
 gametype_t	starttype = gt_single;
 
 /* RunCredits2 declarations */
-#define CREDIT_TEXT_TIME 4      /* Tics per character, slowed to 6 */
+#define CREDIT_TEXT_TIME 3      /* Tics per character, slow to 6 for bigpemu */
 #define CREDIT_STARTX 8         /* Starting X position */
 #define CREDIT_STARTY 8         /* Starting Y position */
 #define CREDIT_NUMENDOBJ 28     /* Number of big font sprites (a-z, .!) */
@@ -43,7 +43,7 @@ static int credit2_y;
 static jagobj_t *credit2_endobj[CREDIT_NUMENDOBJ];
 static char credit2_text[] =
     " jaguar doom evolved**"
-    "       developled by*"
+    "       developed by*"
     "        aaron jones*"
     "            tolbat**"
 	"  directed by jagchris**"
@@ -432,8 +432,7 @@ int TIC_Abortable (void)
 
 
 /*============================================================================= */
-
-jagobj_t	*titlepic;				   
+			   
 void START_Title (void)
 {
     backgroundpic = (jagobj_t *)W_POINTLUMPNUM(W_GetNumForName("M_TITLE"));
@@ -488,15 +487,105 @@ void DRAW_Credits (void)
     DrawJagobj (titlepic, 0, 0);
     UpdateBuffer ();
 }
+void RunMenu(void);
+/*
+====================
+=
+= RunTitle
+=
+====================
+*/
+
+void RunTitle (void)
+{
+    int exit;
+
+    exit = MiniLoop (START_Title, STOP_Title, TIC_Abortable, DRAW_Title);
+    if (exit == ga_exitdemo)
+        RunMenu ();
+}
+
+/*
+====================
+=
+= RunCredits
+=
+====================
+*/
+
+void RunCredits (void)
+{
+    int exit;
+
+    exit = MiniLoop (START_Credits, STOP_Credits, TIC_Credits, DRAW_Credits);
+    if (exit == ga_exitdemo)
+        RunMenu ();
+}
+
+/*
+====================
+=
+= RunDemo
+=
+====================
+*/
+
+void RunDemo (char *demoname)
+{
+    int *demo;
+    int exit;
+
+    demo = (int *)W_CacheLumpName (demoname, PU_STATIC);
+    exit = G_PlayDemoPtr (demo);
+    Z_Free (demo);
+    if (exit == ga_exitdemo)
+        RunMenu ();
+}
+
+/*============================================================================ */
+
+/*
+====================
+=
+= RunMenu
+=
+====================
+*/
+
+void RunMenu (void)
+{
+reselect:
+    MiniLoop (M_Start, M_Stop, M_Ticker, M_Drawer);
+    if (starttype != gt_single)
+    {
+        I_NetSetup ();
+        if (starttype == gt_single)
+            goto reselect;        /* aborted net startup */
+    }
+
+    G_InitNew (startskill, startmap, starttype);
+    G_RunGame ();
+}
 
 /*============================================================================ */
 
 /* RunCredits2 - New custom credits screen for JagDoomE */
+/* Optional: adjust this to taste; smaller = faster typing (CREDIT_TEXT_TIME) */
+
+static void PrintCreditChar(char c);   /* forward declaration */
+
+/*
+====================
+=
+= START_Credits2
+=
+====================
+*/
 
 void START_Credits2(void)
 {
-    int		i;
-    int		l;
+    int        i;
+    int        l;
 
     backgroundpic = (jagobj_t *)W_POINTLUMPNUM(W_GetNumForName("M_TITLE"));
     DoubleBufferSetup();
@@ -508,12 +597,21 @@ void START_Credits2(void)
         credit2_endobj[i] = (jagobj_t *)W_CacheLumpNum(l + i, PU_STATIC);
 
     /* Reset state */
-    credit2_done = false;
-    credit2_index = 0;
-    credit2_delay = CREDIT_TEXT_TIME;
-    credit2_x = CREDIT_STARTX;
-    credit2_y = CREDIT_STARTY;
+    credit2_done       = false;
+    credit2_index      = 0;
+    credit2_delay      = CREDIT_TEXT_TIME;
+    credit2_x          = CREDIT_STARTX;
+    credit2_y          = CREDIT_STARTY;
+    credit2_stop_delay = 0;        /* ensure clean start each time */
 }
+
+/*
+====================
+=
+= STOP_Credits2
+=
+====================
+*/
 
 void STOP_Credits2(void)
 {
@@ -523,20 +621,29 @@ void STOP_Credits2(void)
         Z_Free(credit2_endobj[i]);
 }
 
+/*
+====================
+=
+= TIC_Credits2
+=
+====================
+*/
+
 int TIC_Credits2(void)
 {
-    if (credit2_done && credit2_stop_delay == 0)  /* Text finished, start 5-second delay */
-        credit2_stop_delay = 75;  /* 5 seconds (75 tics at 15Hz) */
+    if (credit2_done && credit2_stop_delay == 0)
+        credit2_stop_delay = 75;  /* 5 seconds at 15 Hz */
 
     if (credit2_stop_delay > 0)
     {
-        credit2_stop_delay--;  /* Decrement delay each tic */
-        if (credit2_stop_delay == 0)
-            S_StopSong();  /* Stop song after 5 seconds */
-    }
+        credit2_stop_delay--;
 
-    if (credit2_done && credit2_stop_delay == 0)  /* Exit only after delay completes */
-        return 1;  /* Proceed to next sequence */
+        if (credit2_stop_delay == 0)
+        {
+            S_StopSong();
+            return 1;            /* Proceed to next sequence (DEMO2) */
+        }
+    }
 
     if ((ticbuttons[0] & BT_A) && !(oldticbuttons[0] & BT_A))
         return ga_exitdemo;
@@ -545,36 +652,73 @@ int TIC_Credits2(void)
     if ((ticbuttons[0] & BT_C) && !(oldticbuttons[0] & BT_C))
         return ga_exitdemo;
 
-    return 0;
+    return 0;   /* keep running */
 }
 
-void DRAW_Credits2(void)
-{
-    /* Helper to print a single character */
-    void PrintCreditChar(char c)
-    {
-        int		val;
+/*
+====================
+=
+= PrintCreditChar
+=
+====================
+*/
 
-        switch (c)
-        {
-            case ' ': val = 30; credit2_x += 8; break;  /* Space (adjust width if needed) */
-            case '.': val = 26; break;                  /* Period */
-            case '!': val = 27; break;                  /* Exclamation */
-            case '*': val = 30; credit2_x = CREDIT_STARTX; credit2_y += credit2_endobj[0]->height + 4; break;  /* Newline */
-            default: val = c - 'a'; break;              /* Letters a-z */
-        }
-        if (val < CREDIT_NUMENDOBJ && val >= 0)
+static void PrintCreditChar(char c)
+{
+    int val;
+
+    switch (c)
+    {
+        case ' ':
+            val = 30;
+            credit2_x += 8;
+            break;
+
+        case '.':
+            val = 26;
+            break;
+
+        case '!':
+            val = 27;
+            break;
+
+        case '*':
+            val = 30;
+            credit2_x = CREDIT_STARTX;
+            credit2_y += credit2_endobj[0]->height + 4;
+            break;
+
+        default:
+            val = c - 'a';
+            break;
+    }
+
+    if (val >= 0 && val < CREDIT_NUMENDOBJ)
+    {
+        if (val < 26 || c == '.' || c == '!')
         {
             DrawJagobj(credit2_endobj[val], credit2_x, credit2_y);
             credit2_x += credit2_endobj[val]->width;
-            if (credit2_x > 316)  /* Wrap if off-screen */
-            {
-                credit2_x = CREDIT_STARTX;
-                credit2_y += credit2_endobj[val]->height + 4;
-            }
+        }
+
+        if (credit2_x > 316)
+        {
+            credit2_x = CREDIT_STARTX;
+            credit2_y += credit2_endobj[val]->height + 4;
         }
     }
+}
 
+/*
+====================
+=
+= DRAW_Credits2
+=
+====================
+*/
+
+void DRAW_Credits2(void)
+{
     if (!credit2_done && !--credit2_delay)
     {
         if (credit2_text[credit2_index])
@@ -585,75 +729,30 @@ void DRAW_Credits2(void)
         }
         else
         {
-            credit2_done = true;  /* Text fully printed */
+            credit2_done = true;
         }
     }
 
     UpdateBuffer();
 }
 
+/*
+====================
+=
+= RunCredits2
+=
+====================
+*/
+
 void RunCredits2(void)
 {
-    int		exit;
+    int exit;
 
     exit = MiniLoop(START_Credits2, STOP_Credits2, TIC_Credits2, DRAW_Credits2);
     if (exit == ga_exitdemo)
         RunMenu();
 }
 
-/*============================================================================ */
-
-void RunMenu (void);
-
-void RunTitle (void)
-{
-    int		exit;
-    
-    exit = MiniLoop (START_Title, STOP_Title, TIC_Abortable, DRAW_Title);
-    if (exit == ga_exitdemo)
-        RunMenu ();
-}
-
-void RunCredits (void)
-{
-    int		exit;
-    
-    exit = MiniLoop (START_Credits, STOP_Credits, TIC_Credits, DRAW_Credits);
-    if (exit == ga_exitdemo)
-        RunMenu ();
-}
-
-void RunDemo (char *demoname)
-{
-    int	*demo;
-    int	exit;
-        
-    demo = (int *)W_CacheLumpName (demoname, PU_STATIC);
-    exit = G_PlayDemoPtr (demo);
-    Z_Free (demo);
-    if (exit == ga_exitdemo)
-        RunMenu ();
-}
-
-
-void RunMenu (void)
-{
-reselect:
-    MiniLoop (M_Start, M_Stop, M_Ticker, M_Drawer);
-    if (starttype != gt_single)
-    {
-        I_NetSetup ();
-        if (starttype == gt_single)
-            goto reselect;		/* aborted net startup */
-    }
-    
-    G_InitNew (startskill, startmap, starttype);
-    G_RunGame ();
-}
-
-/*============================================================================ */
-
- 
 /* 
 ============= 
 = 
@@ -666,6 +765,7 @@ void DM_main (void);
  
 void testgpu (void);
 void D_DoomMain (void) 
+
 {    
 D_printf ("C_Init\n");
     C_Init ();		/* set up object list / etc	  */
@@ -692,7 +792,7 @@ D_printf ("DM_Main\n");
 
 /*	while (1)	RunDemo ("DEMO1"); */
 
-/*G_RecordDemo ();	// set startmap and startskill */
+/*G_RecordDemo (); */	/* set startmap and startskill */
 
 /*	MiniLoop (F_Start, F_Stop, F_Ticker, F_Drawer); */
 
@@ -720,7 +820,7 @@ D_printf ("DM_Main\n");
         RunTitle ();
         RunDemo ("DEMO1");
         RunCredits ();
-        RunCredits2 ();  /* New credits screen added here */
+        RunCredits2 ();  				/* New credits screen added here */
         RunDemo ("DEMO2");
     }
 
