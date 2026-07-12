@@ -1128,10 +1128,11 @@ L127:
  store r20,(r0) ;(xscale)
 
  store r20,(FP) ; arg[] ;(xscale)
- 
+
 ; chillywilly: correct yscale for widescreen
  movei #_stretchscale,r0
  load (r0),r0
+ or r0,scratch ; scoreboard bug
 
  store r0,(FP+1) ; arg[]
  movei #_G_FixedMul,r0
@@ -1157,14 +1158,14 @@ L128:
  load (FP+18),r15 ; pop ;(vis)
  load (FP+10), RETURNPOINT ; pop
  move r15,r0    ;(vis)
- addq #20,r0    ;(yscale)
+ addq #20,r0
  store r29,(r0) ;(RETURNVALUE)
 
- move r15,r0    ;(vis)
- addq #24,r0    ;(yiscale)
+ move r15,r0 ;(vis)
+ addq #24,r0
  movei #-1,r1
- move r15,r2    ;(vis)
- addq #20,r2    ;(yscale)
+ move r15,r2 ;(vis)
+ addq #20,r2
  load (r2),r2
  div r2,r1
  store r1,(r0)
@@ -1176,10 +1177,10 @@ L128:
  jump EQ,(scratch)
  nop
 
- move r15,r0    ;(vis)
- addq #16,r0    ;(xiscale)
+ move r15,r0 ;(vis)
+ addq #16,r0
  movei #-1,r1
- move r20,r2    ;(xscale)
+ move r20,r2 ;(xscale)
  div r2,r1
  neg r1
  store r1,(r0)
@@ -1187,6 +1188,7 @@ L128:
  movei #L118,r0
  jump T,(r0)
  nop
+
 
 L117:
 

@@ -22,6 +22,10 @@ int		w2m[NUMWEAPONS] = {10, 1, 3, 7, 8, 9, 0, 10};
 
 int		facetics;
 int		newface;
+int		displayedface;
+int		yourFragDrawState;
+int		hisFragDrawState;
+int		flashCardDrawState[NUMCARDS];							  
 int		card_x[NUMCARDS] = {KEYX,KEYX,KEYX,KEYX+3, KEYX+3, KEYX+3};
 int		card_y[NUMCARDS] = {BLUKEYY,YELKEYY,REDKEYY,BLUKEYY,YELKEYY,REDKEYY};
 
@@ -146,6 +150,16 @@ void DrawMicroChar(int *s, int c, int x, int y)
     }
 }
 
+
+static void ST_DrawCachedFace(int face)
+{
+	if (displayedface != face)
+	{
+		displayedface = face;
+		DrawJagobj(faces[face], FACEX, FACEY);
+	}
+}
+
 /*
 ====================
 =
@@ -185,6 +199,10 @@ void ST_InitEveryLevel(void)
 	/* force everything to be updated on next ST_Update */
 	D_memset (&stbar, 0x80, sizeof(stbar) );
 	facetics = 0;
+	displayedface = -1;
+	yourFragDrawState = -1;
+	hisFragDrawState = -1;
+	flashInitialDraw = false;				   
 
 	/* DRAW FRAG COUNTS INITIALLY */
 	if (netgame == gt_deathmatch)
@@ -217,6 +235,7 @@ void ST_InitEveryLevel(void)
 		flashCards[i].y = card_y[i];
 		flashCards[i].w = KEYW;
 		flashCards[i].h = KEYH;
+		flashCardDrawState[i] = -1;
 	}
 }
 
@@ -306,6 +325,7 @@ void ST_Ticker (void)
 			flashCards[ind].delay = FLASHDELAY;
 			flashCards[ind].times = FLASHTIMES+1;
 			flashCards[ind].doDraw = false;
+			flashCardDrawState[ind] = -1;
 		}
 		
 		/* MIGHT AS WELL DO TICKING IN THE SAME LOOP! */
@@ -334,6 +354,19 @@ void ST_Drawer (void)
 {
 	int			i;
 	int			ind;
+	int			x;
+	int			weapon;
+	int			ammotype;
+	int			ammo;
+	int			color;
+	int			readyweapon;
+	int			oldweapon;
+	int			selected;
+	int			oldselected;
+	int			drawstate;
+	int			face;
+	int			base;
+	int			drewgib;			   
 	player_t	*p;
 	
 	bufferpage = sbartop;		/* draw into status bar overlay */
@@ -398,6 +431,7 @@ void ST_Drawer (void)
 			EraseBlock(KEYX,card_y[ind],KEYW,KEYH);
 			if (stbar.cards[ind])
 				DrawJagobj(sbobj[sb_card_b + ind],card_x[ind],card_y[ind]);
+			flashCardDrawState[ind] = -1;
 		}
 	}
 	
@@ -409,7 +443,7 @@ void ST_Drawer (void)
 		i = gamemap;
 		if (stbar.currentMap != i)
 		{
-			int	x = MAPX;
+			x = MAPX;
 			stbar.currentMap = i;
 			/* CENTER THE LEVEL # IF < 10 */
 			if (stbar.currentMap < 10)
@@ -418,43 +452,49 @@ void ST_Drawer (void)
 			ST_DrawValue(x,MAPY,i);
 		}
 		
+		readyweapon = p->readyweapon;
+		oldweapon = stbar.lastweapon;
+		if (readyweapon == wp_nochange)
+			readyweapon = oldweapon;
+		
 		for (ind = 0; ind < NUMMICROS; ind++)
 		{
-			if ((p->weaponowned[ind+1] != stbar.weaponowned[ind]) || 
-                (p->ammo[w2a[ind+1]] != stbar.wammo[w2a[ind]]) ||
-                ((stbar.lastweapon == ind+1) && (p->readyweapon != stbar.lastweapon)))
+			weapon = ind + 1;
+			ammotype = w2a[weapon];
+			ammo = 0;
+			if (ammotype != -1)
+				ammo = p->ammo[ammotype];
+			
+			selected = readyweapon == weapon;
+			oldselected = oldweapon == weapon;
+			
+			if ((p->weaponowned[weapon] != stbar.weaponowned[ind]) ||
+				(ammo != stbar.wammo[ind]) ||
+				(selected != oldselected))
 			{
-                /* change in status */
-				stbar.weaponowned[ind] = p->weaponowned[ind+1];
-                stbar.wammo[ind] = p->ammo[w2a[ind+1]];
+				stbar.weaponowned[ind] = p->weaponowned[weapon];
+				stbar.wammo[ind] = ammo;
 				EraseBlock(micronums_x[ind],micronums_y[ind],4,6);
 
 				if (stbar.weaponowned[ind])
-                {
-                    int color = WHITE; /* infinite ammo */
-                    if (p->readyweapon == ind+1)
-                        color = GREEN; /* weapon equipped */
-					else if (stbar.wammo[ind] >= (p->maxammo[w2a[ind+1]] >> 1))
-                        color = BLUE; /* more than half max ammo */
-                    else if (stbar.wammo[ind] > 0)
-                        color = YELLOW; /* less than half max ammo */
-                    else if (stbar.wammo[ind] == 0)
-                        color = RED; /* no ammo */
-					DrawMicroChar(&microchars[w2m[ind+1]*5], color,
+				{
+					color = WHITE;
+					if (selected)
+						color = GREEN;
+					else if (ammotype == -1)
+						color = WHITE;
+					else if (ammo >= (p->maxammo[ammotype] >> 1))
+						color = BLUE;
+					else if (ammo > 0)
+						color = YELLOW;
+					else
+						color = RED;
+					DrawMicroChar(&microchars[w2m[weapon]*5], color,
 						micronums_x[ind],micronums_y[ind]);
-                }
+				}
 			}
 		}
-        if (p->readyweapon != stbar.lastweapon)
-        {
-            ind = stbar.lastweapon = p->readyweapon;
-            if (ind && ind < wp_chainsaw)
-            {
-                EraseBlock(micronums_x[ind-1],micronums_y[ind-1],4,6);
-				DrawMicroChar(&microchars[w2m[ind]*5], GREEN,
-					micronums_x[ind-1],micronums_y[ind-1]);
-            }
-        }
+		stbar.lastweapon = readyweapon;
 	}
 	/* */
 	/* Or, frag counts! */
@@ -476,6 +516,7 @@ void ST_Drawer (void)
 			yourFrags.delay = FLASHDELAY;
 			yourFrags.times = FLASHTIMES;
 			yourFrags.doDraw = false;
+			yourFragDrawState = -1;
 		}
 		
 		if (his != stbar.hisFrags)
@@ -487,32 +528,51 @@ void ST_Drawer (void)
 			hisFrags.delay = FLASHDELAY;
 			hisFrags.times = FLASHTIMES;
 			hisFrags.doDraw = false;
+			hisFragDrawState = -1;
 		}
 	}
 	
 	/* */
-	/* Draw YOUR FRAGS if it's time */
+	/* Draw YOUR FRAGS if the visible flash state changed */
 	/* */
 	if (yourFrags.active)
 	{
+		drawstate = 0;
 		if (yourFrags.doDraw)
-			ST_DrawValue(yourFrags.x,yourFrags.y,stbar.yourFrags);
-		else
-			EraseBlock(yourFrags.x - yourFrags.w,
-				yourFrags.y,yourFrags.w,yourFrags.h);
+			drawstate = 1;
+		if (yourFragDrawState != drawstate)
+		{
+			yourFragDrawState = drawstate;
+			if (yourFrags.doDraw)
+				ST_DrawValue(yourFrags.x,yourFrags.y,stbar.yourFrags);
+			else
+				EraseBlock(yourFrags.x - yourFrags.w,
+					yourFrags.y,yourFrags.w,yourFrags.h);
+		}
 	}
+	else
+		yourFragDrawState = -1;
 	
 	/* */
-	/* Draw HIS FRAGS if it's time */
+	/* Draw HIS FRAGS if the visible flash state changed */
 	/* */
 	if (hisFrags.active)
 	{
+		drawstate = 0;
 		if (hisFrags.doDraw)
-			ST_DrawValue(hisFrags.x,hisFrags.y,stbar.hisFrags);
-		else
-			EraseBlock(hisFrags.x - hisFrags.w,
-				hisFrags.y,hisFrags.w,hisFrags.h);
+			drawstate = 1;
+		if (hisFragDrawState != drawstate)
+		{
+			hisFragDrawState = drawstate;
+			if (hisFrags.doDraw)
+				ST_DrawValue(hisFrags.x,hisFrags.y,stbar.hisFrags);
+			else
+				EraseBlock(hisFrags.x - hisFrags.w,
+					hisFrags.y,hisFrags.w,hisFrags.h);
+		}
 	}
+	else
+		hisFragDrawState = -1;
 	
 	if (flashInitialDraw)
 	{
@@ -523,31 +583,55 @@ void ST_Drawer (void)
 			hisFrags.w,hisFrags.h);
 		ST_DrawValue(yourFrags.x,yourFrags.y,stbar.yourFrags);
 		ST_DrawValue(hisFrags.x,hisFrags.y,stbar.hisFrags);
+		yourFragDrawState = -1;
+		hisFragDrawState = -1;
 	}
 	
 	/* */
 	/* Flash CARDS or SKULLS if no key for door */
 	/* */
 	for (ind = 0; ind < NUMCARDS; ind++)
+	{
 		if (flashCards[ind].active)
 		{
+			drawstate = 0;
 			if (flashCards[ind].doDraw)
-				DrawJagobj(sbobj[sb_card_b + ind],
-					flashCards[ind].x,flashCards[ind].y);
-			else
-				EraseBlock(flashCards[ind].x,flashCards[ind].y,
-					flashCards[ind].w,flashCards[ind].h);
+				drawstate = 1;
+			if (flashCardDrawState[ind] != drawstate)
+			{
+				flashCardDrawState[ind] = drawstate;
+				if (flashCards[ind].doDraw)
+					DrawJagobj(sbobj[sb_card_b + ind],
+						flashCards[ind].x,flashCards[ind].y);
+				else
+					EraseBlock(flashCards[ind].x,flashCards[ind].y,
+						flashCards[ind].w,flashCards[ind].h);
+			}
 		}
+		else if (flashCardDrawState[ind] != -1)
+		{
+			flashCardDrawState[ind] = -1;
+			EraseBlock(flashCards[ind].x,flashCards[ind].y,
+				flashCards[ind].w,flashCards[ind].h);
+			if (stbar.cards[ind])
+				DrawJagobj(sbobj[sb_card_b + ind],card_x[ind],card_y[ind]);
+		}
+	}
 	
 	/* */
 	/* Draw gibbed head */
 	/* */
+	drewgib = false;
 	if (gibdraw && !--gibdelay)
 	{
-		DrawJagobj(faces[FIRSTSPLAT + gibframe++],FACEX,FACEY);
+		ST_DrawCachedFace(FIRSTSPLAT + gibframe++);
+		drewgib = true;
 		gibdelay = GIBTIME;
 		if (gibframe > 6)
+		{
 			gibdraw = false;
+			stbar.face = -1;
+		}
 	}
 		
 	/*                    */
@@ -560,29 +644,35 @@ void ST_Drawer (void)
 	/* */
 	/* face change */
 	/* */
-	if (stbar.godmode)
-		DrawJagobj(faces[GODFACE],FACEX,FACEY);
-	else
-	if (!stbar.health)
-		DrawJagobj(faces[DEADFACE],FACEX,FACEY);
-	else
-	if (doSpclFace)
+	if (!drewgib)
 	{
-		int	base = stbar.health / 20;
-		base = base > 4 ? 4 : base;
-		base = 4 - base;
-		base *= 8;
-		DrawJagobj(faces[base + spclfaceSprite[spclFaceType]],FACEX,FACEY);
-	}
-	else
-	if ((stbar.face != newface) && !gibdraw)
-	{
-		int	base = stbar.health/20;
-		base = base > 4 ? 4 : base;
-		base = 4 - base;
-		base *= 8;
-		stbar.face = newface;
-		DrawJagobj (faces[base + newface], FACEX, FACEY);
+		face = -1;
+		if (stbar.godmode)
+			face = GODFACE;
+		else
+		if (!stbar.health)
+			face = DEADFACE;
+		else
+		if (doSpclFace)
+		{
+			base = stbar.health / 20;
+			base = base > 4 ? 4 : base;
+			base = 4 - base;
+			base *= 8;
+			face = base + spclfaceSprite[spclFaceType];
+		}
+		else
+		{
+			base = stbar.health/20;
+			base = base > 4 ? 4 : base;
+			base = 4 - base;
+			base *= 8;
+			stbar.face = newface;
+			face = base + newface;
+		}
+
+		if (face != -1)
+			ST_DrawCachedFace(face);
 	}
 }
 

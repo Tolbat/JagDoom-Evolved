@@ -234,8 +234,8 @@ D_printf ("Done\n");
 
 void R_InitMathTbl (void)
 {
-	fixed_t stretchWidth;
-    int i;
+	fixed_t	stretchWidth;
+	int		i;
 
 	/* chillywilly: remake the yslope table for normal/widescreen */
 	stretchWidth = SCREENWIDTH / 2 * stretchscale;
@@ -244,7 +244,7 @@ void R_InitMathTbl (void)
 		fixed_t y = ((i - SCREENHEIGHT / 2) << FRACBITS) + FRACUNIT / 2;
 		y = D_abs(y);
 		y = FixedDiv(stretchWidth, y);
-		yslope[i] = (y >> 6) & 0xFFFF;  /* counts on yslope being in ram */
+		yslope[i] = (y >> 6) & 0xFFFF;	/* counts on yslope being in ram */
 	}
 }
 
@@ -345,16 +345,16 @@ void R_Setup (void)
 		
 	extralight = player->extralight << 6;
 	fixedcolormap = player->fixedcolormap;
-		
-    /* chillywilly: set stretch for rendering */
-    stretch = anamorphicview ? 28*8 : 22*8;
-    stretchscale = anamorphicview ? 183501 : 144179;
-    if (initmathtbl)
-    {
-        initmathtbl = false;
-        R_InitMathTbl();
-    }
 
+	/* chillywilly: set stretch for rendering */
+	stretch = anamorphicview ? 28*8 : 22*8;
+	stretchscale = anamorphicview ? 183501 : 144179;
+	if (initmathtbl)
+	{
+		initmathtbl = false;
+		R_InitMathTbl ();
+	}
+		
 /* */
 /* calc shadepixel */
 /* */

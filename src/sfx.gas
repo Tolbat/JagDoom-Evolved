@@ -83,7 +83,7 @@ sw_mask		.equr	r23
 	.extern	_sfxsample
 	
 	load	(FP),sw_samples
-	shlq	#2,sw_samples			; in quads
+	shlq	#2,sw_samples				; in quads
 	
 	moveq	#0,sw_zero
 	movei	#$ffff,sw_mask
@@ -96,77 +96,26 @@ sw_mask		.equr	r23
 	add		sw_samples,scratch			; 11khz sfx are doubled for 22khz isr
 	store	scratch,(scratch2)			; sfxsample += samples*2
 
-	shlq	#1,sw_dest                  ; 16-bit samples
-	movei	#$1fff,scratch
+	shlq	#2,sw_dest                  ; 16-bit samples * 2 for interleave
+	movei	#$3fff,scratch
 	and		scratch,sw_dest
-	movei	#$1f0000,scratch
-	add		scratch,sw_dest				; sw_dest = externbuffer[(sfxsample*2)&0x1FFF]
+	movei	#$1f0002,scratch
+	add		scratch,sw_dest				; sw_dest = externbuffer[(sfxsample*4)&0x1FFF + 2]
 	
 	movei	#_internalbuffer,sw_source
-
-    movei   #_music,scratch
-    load    (scratch),scratch
-    moveq   #0,r1
-    cmp     r1,scratch
-    jr      EQ,sfxloop                  ; just sfx
-    nop
-
-    movei   #musloop,scratch
-    jump    T,(scratch)                 ; mix sfx with music
-    nop
-
 sfxloop:
 	movei	#satloop,sw_looppoint
 	load	(sw_source),sw_sample		; delay slotted
 satloop:
 	store	sw_zero,(sw_source)
-	addq	#4,sw_source
 	
-	sharq	#8,sw_sample
-	sat16s	sw_sample
-    and     sw_mask,sw_sample
-
-	move	sw_sample,sw_combined
-	shlq	#16,sw_combined
-	add		sw_sample,sw_combined
-
-	store	sw_combined,(sw_dest)
+	sharq	#8,sw_sample				; 32 to 24-bit pcm
+	sat16s	sw_sample					; saturate to 16-bit pcm
+	storew	sw_sample,(sw_dest)
 	addqmod	#4,sw_dest
-
-	subq	#1,sw_samples
-	jump	NE,(sw_looppoint)
-	load	(sw_source),sw_sample		; delay slot
-	
-	jump	T,(RETURNPOINT)
-	nop
-
-musloop:
-	movei	#msatloop,sw_looppoint
-	load	(sw_source),sw_sample		; delay slotted
-msatloop:
-	store	sw_zero,(sw_source)
 	addq	#4,sw_source
-	
-    load    (sw_dest),scratch
 
-	sharq	#8,sw_sample
-	sat16s	sw_sample
-
-    move    scratch,scratch2
-    shlq    #16,scratch
-    sharq   #16,scratch2
-    sharq   #16,scratch
-
-    add     sw_sample,scratch2
-    add     sw_sample,scratch
-    sat16s  scratch2
-	sat16s  scratch
-
-	move	scratch2,sw_combined
-	shlq	#16,sw_combined
-	add		scratch,sw_combined
-
-	store	sw_combined,(sw_dest)
+	storew	sw_sample,(sw_dest)
 	addqmod	#4,sw_dest
 
 	subq	#1,sw_samples
@@ -550,7 +499,6 @@ L41:
  .extern _finalquad
  .extern _sfxchannels
  .extern _S_WriteOutSamples
- .extern _music
 
 	.phrase
 	.68000

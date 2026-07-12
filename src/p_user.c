@@ -4,13 +4,6 @@
 #include "p_local.h"
 #include "st_main.h"
 
-typedef struct {
-    int ph0_old;
-    int ph1_old;
-    int incr;
-} rotaryVars;
-
-static rotaryVars doom_rotary = {0, 0, 0};
 
 fixed_t 		forwardmove[2] = {0x38000, 0x60000}; 
 fixed_t 		sidemove[2] = {0x38000, 0x58000}; 
@@ -92,23 +85,6 @@ stairstep:
 dospecial:
 	if (latchedline)
 		P_CrossSpecialLine (latchedline, mo);
-}
-
-void UpdateRotaryFromJoypad(unsigned long joyval, rotaryVars *vars)
-{
-    int ph0 = !(joyval & (1 << 10)); /* LEFT bit */
-    int ph1 = !(joyval & (1 << 11)); /* RIGHT bit */
-
-    if (ph0 ^ vars->ph0_old ^ ph1 ^ vars->ph1_old)
-    {
-        if (ph0 ^ vars->ph1_old)
-            vars->incr++;  /* clockwise */
-        else
-            vars->incr--;  /* counter-clockwise */
-    }
-
-    vars->ph0_old = ph0;
-    vars->ph1_old = ph1;
 }
 
 
@@ -254,30 +230,27 @@ void P_PlayerMobjThink (mobj_t *mobj)
 /*============================================================================= */
 
 
-/* 
-==================== 
+/*
+====================
 = 
 = P_BuildMove 
 = 
 ==================== 
-*/ 
- 
+*/
+
 void P_BuildMove (player_t *player) 
 { 
-	boolean     strafe; 
-	int         speed; 
-	int			buttons, oldbuttons; 
-	mobj_t		*mo;	 
-	 
-	buttons = ticbuttons[playernum];
-	oldbuttons = oldticbuttons[playernum];
-	
-	strafe = (buttons & BT_STRAFE) || (buttons & JP_4) || (buttons & JP_6) > 0; 
-	speed = (buttons & BT_SPEED) > 0;
+    boolean strafe; 
+    int speed; 
+    int buttons, oldbuttons; 
+    mobj_t *mo; 
 
+    buttons = ticbuttons[playernum];
+    oldbuttons = oldticbuttons[playernum];
+    
+	strafe = (buttons & (BT_STRAFE|JP_4|JP_6)) != 0; 
+    speed = (buttons & BT_SPEED) > 0;
 
-
-	
 /*  */
 /* use two stage accelerative turning on the joypad  */
 /*  */
@@ -293,11 +266,6 @@ void P_BuildMove (player_t *player)
  
 	player->forwardmove = player->sidemove = player->angleturn = 0;
 	
-	if (rotary_control_enabled && doom_rotary.incr != 0)
-    {
-        player->angleturn = doom_rotary.incr << 15;  /* rotary turn sensitivity */
-        doom_rotary.incr = 0;  /* reset after applying */
-    }
 	if (strafe) 
 	{ 
         if (buttons & BT_STRAFE)
@@ -356,8 +324,12 @@ void P_BuildMove (player_t *player)
 		player->forwardmove = forwardmove[speed]; 
 	if (buttons & (BT_DOWN|BT_5)) 
 		player->forwardmove = -forwardmove[speed];  		 
-
-
+	/* JP_8: Turn the player 180 degrees */
+	if ( (buttons & JP_8) && !(oldbuttons & JP_8) )
+		{
+			/* 180-degree turn logic - about face */
+			player->angleturn += ANG180; 
+		}
 /* */
 /* if slowed down to a stop, change to a standing frame */
 /* */
@@ -374,7 +346,6 @@ void P_BuildMove (player_t *player)
 	}
 	
 } 
- 
 
 /*
 ===============================================================================
@@ -568,21 +539,13 @@ extern int ticphase;
 
 void P_PlayerThink (player_t *player)
 {
-	int		buttons;
-	
+	int		buttons, oldbuttons;
+
 	buttons = ticbuttons[playernum];
+	oldbuttons = oldticbuttons[playernum];
 
 ticphase = 20;
 	P_PlayerMobjThink (player->mo);
-
-/* rotary read */
-if (rotary_control_enabled)
-{
-    volatile unsigned long *JOYREG = (volatile unsigned long *)0x00A10000;
-    unsigned long joyval = ~(*JOYREG);  /* active-low */
-    UpdateRotaryFromJoypad(joyval, &doom_rotary);
-}
-
 	
 ticphase = 21;
 	P_BuildMove (player);
@@ -618,37 +581,104 @@ ticphase = 22;
 		P_PlayerInSpecialSector (player);
 		
 /* */
-/* check for weapon change */
+/* Check for weapon change */
 /* */
-ticphase = 23;
+	ticphase = 23;
 	if (player->pendingweapon == wp_nochange)
 	{
-		if ( buttons & JP_1 )
-			player->pendingweapon = wp_pistol;
-		if ( (buttons & JP_3) && player->weaponowned[wp_shotgun] )
-			player->pendingweapon = wp_shotgun;
-		if ( (buttons & JP_7) && player->weaponowned[wp_chaingun] )
-			player->pendingweapon = wp_chaingun;
-		if ( (buttons & JP_8) && player->weaponowned[wp_missile] )
-			player->pendingweapon = wp_missile;
-		if ( (buttons & JP_9) && player->weaponowned[wp_plasma] )
-			player->pendingweapon = wp_plasma;
-		if ( (buttons & JP_0) && player->weaponowned[wp_bfg] )
-			player->pendingweapon = wp_bfg;
-
-		if ( buttons & JP_STAR )
+	/* JP_1: Toggle between Pistol and melee */
+	if ((buttons & JP_1) && !(oldbuttons & JP_1))
+	{
+		if (player->readyweapon == wp_pistol)
 		{
-			if (player->weaponowned[wp_chainsaw] &&
-			!(player->readyweapon == wp_chainsaw ))
+			if (player->weaponowned[wp_chainsaw])
 				player->pendingweapon = wp_chainsaw;
-			else
+			else if (player->weaponowned[wp_fist])
 				player->pendingweapon = wp_fist;
 		}
-
-		if (player->pendingweapon == player->readyweapon)
-			player->pendingweapon = wp_nochange;
+		else if (player->readyweapon == wp_fist ||
+			player->readyweapon == wp_chainsaw)
+		{
+			if (player->weaponowned[wp_pistol])
+				player->pendingweapon = wp_pistol;
+		}
+		else
+		{
+			if (player->weaponowned[wp_pistol])
+				player->pendingweapon = wp_pistol;
+			else if (player->weaponowned[wp_chainsaw])
+				player->pendingweapon = wp_chainsaw;
+			else if (player->weaponowned[wp_fist])
+				player->pendingweapon = wp_fist;
+		}
 	}
-	
+
+	/* JP_3: Toggle between Shotgun and Chaingun */
+	if ((buttons & JP_3) && !(oldbuttons & JP_3))
+	{
+		if (player->readyweapon == wp_shotgun)
+		{
+			if (player->weaponowned[wp_chaingun])
+				player->pendingweapon = wp_chaingun;
+		}
+		else if (player->readyweapon == wp_chaingun)
+		{
+			if (player->weaponowned[wp_shotgun])
+				player->pendingweapon = wp_shotgun;
+		}
+		else
+		{
+			if (player->weaponowned[wp_shotgun])
+				player->pendingweapon = wp_shotgun;
+			else if (player->weaponowned[wp_chaingun])
+				player->pendingweapon = wp_chaingun;
+			else if (player->weaponowned[wp_pistol])
+				player->pendingweapon = wp_pistol;
+		}
+	}
+
+	/* JP_7: Directly select Missile Launcher */
+	if ((buttons & JP_7) && !(oldbuttons & JP_7) &&
+		player->weaponowned[wp_missile])
+	{
+		player->pendingweapon = wp_missile;
+	}
+
+	/* JP_9: Toggle between Plasma and BFG with fallback */
+	if ((buttons & JP_9) && !(oldbuttons & JP_9))
+	{
+		if (player->readyweapon == wp_plasma)
+		{
+			if (player->weaponowned[wp_bfg])
+				player->pendingweapon = wp_bfg;
+		}
+		else if (player->readyweapon == wp_bfg)
+		{
+			if (player->weaponowned[wp_plasma])
+				player->pendingweapon = wp_plasma;
+		}
+		else
+		{
+			if (player->weaponowned[wp_plasma])
+				player->pendingweapon = wp_plasma;
+			else if (player->weaponowned[wp_bfg])
+				player->pendingweapon = wp_bfg;
+			else if (player->weaponowned[wp_missile])
+				player->pendingweapon = wp_missile;
+			else if (player->weaponowned[wp_chaingun])
+				player->pendingweapon = wp_chaingun;
+			else if (player->weaponowned[wp_shotgun])
+				player->pendingweapon = wp_shotgun;
+			else if (player->weaponowned[wp_pistol])
+				player->pendingweapon = wp_pistol;
+		}
+	}
+
+	/* Avoid unnecessary weapon change */
+	if (player->pendingweapon == player->readyweapon)
+		player->pendingweapon = wp_nochange;
+}
+
 /* */
 /* check for use */
 /* */

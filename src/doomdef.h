@@ -739,6 +739,7 @@ void M_AddToBox (fixed_t *box, fixed_t x, fixed_t y);
 extern	pixel_t	*workingscreen;
 extern	int		junk, spincount;
 
+extern	volatile int		ticcount, joybuttons;
 
 #define BLITWAIT while ( ! ((junk=*(int *)0xf02238) & 1) )	;
 
@@ -796,10 +797,13 @@ extern	unsigned	BT_SPEED;
 
 extern	int		sfxvolume, musicvolume;		/* range from 0 to 255 */
 
+extern	int		spectrestyle;				/* options menu selected spectre style */
+extern	int		spectredvcmd;				/* current spectre dv_cmd used by GPU */
+
 /* */
 /* comnjag.c */
 /*  */
-extern	int		samplecount;
+extern	volatile int	samplecount;
 
 
 void C_Init (void);
@@ -856,12 +860,7 @@ extern	jagobj_t	*pausepic;
 extern	pixel_t	*screens[2];
 extern	int		workpage;
 
-extern volatile int joyx;
-
-extern volatile int	ticcount, joybuttons;
-
 extern	int	controltype;
-extern boolean rotary_control_enabled;
 
 void WriteEEProm (void);
 void O_SetButtonsFromControltype (void);

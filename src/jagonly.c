@@ -73,6 +73,7 @@ extern	jagobj_t *sbar;
 char	hexdigits[16] = "0123456789ABCDEF";
 
 void InitDisplay (void);
+static void I_InitStaticHudObjects(void);									 
 
 void Spin (void)
 {
@@ -160,6 +161,7 @@ soundbuffer[5] = 0xeeee;
 		branch1 = 0x8003 + (a_vde<<3);
 		branch2 = 0x4003 + (a_vdb<<3);
 
+		I_InitStaticHudObjects();
 /* */
 /* init sound hardware */
 /* */
@@ -350,6 +352,7 @@ void I_DrawSbar (void)
 	unsigned	*source, *dest;
 	
 	W_ReadLump (W_GetNumForName ("STBAR"), sbar);	/* background */
+	I_InitStaticHudObjects();
 	if (netgame != gt_deathmatch)
 		return;
 		
@@ -729,7 +732,119 @@ void I_DrawSpan (int ds_y, int ds_x1, int ds_x2, int light, fixed_t ds_xfrac, fi
 } 
 
 /*=========================================================================== */
+static void I_InitStaticHudObjects(void)
+{
+	int			i;
+	int			*buf;
+	unsigned	link;
+	unsigned	pwidth;
+	int			delta;
 
+	for (i = 0; i < 2; i++)
+	{
+		buf = listbuffers[i];
+
+		/* delta is used the same way as I_Update(): normalize links as if base is listbuffer */
+		delta = (byte *)buf - (byte *)listbuffer;
+
+		/* ---------------------------- */
+		/* status bar background [20-23] */
+		/* ---------------------------- */
+		link = (int)(((byte *)&buf[24] - delta)) >> 3;
+		pwidth = 320/8;
+
+		buf[20] =
+			((int)sbar->data<<8)				/* data pointer */
+			+ (link>>8);						/* link */
+
+		buf[21] =
+			(link<<24)							/* link */
+			+ (sbar->height<<14)				/* height */
+			+ ((BASEORGY+SCREENHEIGHT+1)<<4)	/* ypos */
+			+ 0;								/* bitmap type */
+
+		buf[22] =
+			(0<<(49-32))						/* firstpix */
+			+ (0<<(48-32))						/* release */
+			+ (0<<(47-32))						/* transparent */
+			+ (0<<(46-32))						/* add to buffer */
+			+ (0<<(45-32))						/* reflect */
+			+ (0<<(38-32))						/* color index */
+			+ ((pwidth)>>4);					/* iwidth */
+
+		buf[23] =
+			((pwidth)<<28)						/* iwidth */
+			+ ((pwidth)<<18)					/* dwidth */
+			+ (1<<15)							/* pitch */
+			+ (3<<12)							/* depth */
+			+ BASEORGX*2;						/* xpos */
+
+		/* ---------------------------- */
+		/* status bar foreground [24-27] */
+		/* default link is STOP; I_Update will patch link when debug is active */
+		/* ---------------------------- */
+		link = (int)stopobj >> 3;
+
+		buf[24] =
+			((int)sbartop<<8)					/* data pointer */
+			+ (link>>8);						/* link */
+
+		buf[25] =
+			(link<<24)							/* link */
+			+ (sbar->height<<14)				/* height */
+			+ ((BASEORGY+SCREENHEIGHT+1)<<4)	/* ypos */
+			+ 0;								/* bitmap type */
+
+		buf[26] =
+			(0<<(49-32))						/* firstpix */
+			+ (0<<(48-32))						/* release */
+			+ (1<<(47-32))						/* transparent */
+			+ (0<<(46-32))						/* add to buffer */
+			+ (0<<(45-32))						/* reflect */
+			+ (0<<(38-32))						/* color index */
+			+ ((pwidth)>>4);					/* iwidth */
+
+		buf[27] =
+			((pwidth)<<28)						/* iwidth */
+			+ ((pwidth)<<18)					/* dwidth */
+			+ (1<<15)							/* pitch */
+			+ (3<<12)							/* depth */
+			+ BASEORGX*2;						/* xpos */
+
+		/* ---------------------------- */
+		/* debug screen object [28-31] */
+		/* always built; only linked when debugscreenactive is true */
+		/* ---------------------------- */
+		link = (int)stopobj >> 3;
+		pwidth = 256/64;
+
+		buf[28] =
+			((int)debugscreen<<8)				/* data pointer */
+			+ (link>>8);						/* link */
+
+		buf[29] =
+			(link<<24)							/* link */
+			+ (216<<14)							/* height */
+			+ ((BASEORGY)<<4)					/* ypos */
+			+ 0;								/* bitmap type */
+
+		buf[30] =
+			(0<<(49-32))						/* firstpix */
+			+ (0<<(48-32))						/* release */
+			+ (1<<(47-32))						/* transparent */
+			+ (0<<(46-32))						/* add to buffer */
+			+ (0<<(45-32))						/* reflect */
+			+ (0x70<<(38-32))					/* color index */
+			+ (pwidth>>4);						/* iwidth */
+
+		buf[31] =
+			(pwidth<<28)						/* iwidth */
+			+ (pwidth<<18)						/* dwidth */
+			+ (1<<15)							/* pitch */
+			+ (0<<12)							/* depth */
+			+ BASEORGX;							/* xpos */
+	}
+} 
 /* 
 ==================== 
 = 
@@ -815,7 +930,6 @@ void I_Update (void)
 	worklist_p[9] =
 		((GPULINE)<<4)						/* ypos */
 		+ 2;								/* gpu type */
-
 /* */
 /* nop branch */
 /* */
@@ -893,108 +1007,16 @@ void I_Update (void)
 		+ (4<<12)							/* depth */
 		+ BASEORGX;							/* xpos */
 	
-/* */
-/* status bar background */
-/* */
-	link = (int)( (byte *)&worklist_p[24] - delta)>>3;
-	pwidth = 320/8;
+/* Patch sbartop link depending on debug state.
+   HUD objects [20..31] are prebuilt in both list buffers. */
+if (debugscreenactive)
+    link = (int)((byte *)&worklist_p[28] - delta) >> 3;
+else
+    link = (int)stopobj >> 3;
 
-	worklist_p[20] = 
-		((int)sbar->data<<8)				/* data pointer */
-		+ (link>>8);						/* link */
-		
-	worklist_p[21] =
-		(link<<24)							/* link */
-		+ (sbar->height<<14)				/* height */
-		+ ((BASEORGY+SCREENHEIGHT+1)<<4)	/* ypos */
-		+ 0;								/* bitmap type */
-		
-	worklist_p[22] =
-		(0<<(49-32))						/* firstpix */
-		+ (0<<(48-32))						/* release */
-		+ (0<<(47-32))						/* transparent */
-		+ (0<<(46-32))						/* add to buffer */
-		+ (0<<(45-32))						/* reflect */
-		+ (0<<(38-32))						/* color index */
-		+ ((pwidth)>>4);					/* iwidth */
-
-	worklist_p[23] =
-		((pwidth)<<28)						/* iwidth */
-		+ ((pwidth)<<18)					/* dwidth */
-		+ (1<<15)							/* pitch */
-		+ (3<<12)							/* depth */
-		+ BASEORGX*2;						/* xpos */
-
-/* */
-/* status bar foreground */
-/* */
-
-/* skip debug screen if not active */
-	if (debugscreenactive)
-		link = (int)( (byte *)&worklist_p[28] - delta)>>3;
-	else
-		link = (int)stopobj>>3;
-
-	worklist_p[24] = 
-		((int)sbartop<<8)					/* data pointer */
-		+ (link>>8);						/* link */
-		
-	worklist_p[25] =
-		(link<<24)							/* link */
-		+ (sbar->height<<14)				/* height */
-		+ ((BASEORGY+SCREENHEIGHT+1)<<4)	/* ypos */
-		+ 0;								/* bitmap type */
-		
-	worklist_p[26] =
-		(0<<(49-32))						/* firstpix */
-		+ (0<<(48-32))						/* release */
-		+ (1<<(47-32))						/* transparent */
-		+ (0<<(46-32))						/* add to buffer */
-		+ (0<<(45-32))						/* reflect */
-		+ (0<<(38-32))						/* color index */
-		+ ((pwidth)>>4);					/* iwidth */
-
-	worklist_p[27] =
-		((pwidth)<<28)						/* iwidth */
-		+ ((pwidth)<<18)					/* dwidth */
-		+ (1<<15)							/* pitch */
-		+ (3<<12)							/* depth */
-		+ BASEORGX*2;						/* xpos */
-
-/* */
-/* debug screen object */
-/* */
-
-	link = (int)stopobj>>3;
-	pwidth = 256/64;
-
-	worklist_p[28] = 
-		((int)debugscreen<<8)				/* data pointer */
-		+ (link>>8);						/* link */
-		
-	worklist_p[29] =
-		(link<<24)							/* link */
-		+ (216<<14)							/* height */
-		+ ((BASEORGY)<<4)					/* ypos */
-		+ 0;								/* bitmap type */
-		
-	worklist_p[30] =
-		(0<<(49-32))						/* firstpix */
-		+ (0<<(48-32))						/* release */
-		+ (1<<(47-32))						/* transparent */
-		+ (0<<(46-32))						/* add to buffer */
-		+ (0<<(45-32))						/* reflect */
-		+ (0x70<<(38-32))					/* color index */
-		+ (pwidth>>4);						/* iwidth */
-
-	worklist_p[31] =
-		(pwidth<<28)						/* iwidth */
-		+ (pwidth<<18)						/* dwidth */
-		+ (1<<15)							/* pitch */
-		+ (0<<12)							/* depth */
-		+ BASEORGX;							/* xpos */
-
-
+/* Only patch what changes: the link field (and keep the rest intact) */
+worklist_p[24] = ((int)sbartop << 8) + (link >> 8);
+worklist_p[25] = (worklist_p[25] & 0x00FFFFFF) + (link << 24);
 /* */
 /* wait until on the third tic after last display */
 /* */
@@ -1032,6 +1054,7 @@ byte	*I_TempBuffer (void)
 {
 	return (byte *)screens[workpage];
 }
+
 
 
 /*
@@ -1426,11 +1449,11 @@ void ClearEEProm (void)
 {
 	startskill = sk_medium;
 	startmap = 1;
-	sfxvolume = 63;
-	musicvolume = 63;
+	sfxvolume = 200;
+	musicvolume = 100;
 	controltype = 0;
 	maxlevel = 24;      /* chillywilly - all levels unlocked */
-    anamorphicview = 0; /* chillywilly - widescreen disabled */
+	anamorphicview = 0; /* chillywilly - widescreen */
 
 	WriteEEProm ();	
 }
@@ -1464,29 +1487,53 @@ void ReadEEProm (void)
 	if (checksum != eeprombuffer[EEWORDS-1])
 	{	/* checksum failure, clear eeprom */
 		ClearEEProm ();
+		return;
 	}
 	
 	startskill = eeprombuffer[1];
 	if (startskill > sk_nightmare)
+	{
 		ClearEEProm ();
+		return;
+	}
+
 	startmap = eeprombuffer[2];
 	if (startmap > 25)
+	{
 		ClearEEProm ();
+		return;
+	}
+
 	sfxvolume = eeprombuffer[3];
 	if (sfxvolume > 255)
+	{
 		ClearEEProm ();
+		return;
+	}
+
 	musicvolume = eeprombuffer[4];
 	if (musicvolume > 255)
+	{
 		ClearEEProm ();
+		return;
+	}
+
 	controltype = eeprombuffer[5];
 	if (controltype > 5)
+	{
 		ClearEEProm ();
+		return;
+	}
+
 	maxlevel = eeprombuffer[6];
 	if (maxlevel > 24)
+	{
 		ClearEEProm ();
-    anamorphicview = eeprombuffer[7] ? true : false; /* chillywilly - widescreen */
-}
+		return;
+	}
 
+	anamorphicview = eeprombuffer[7] ? true : false; /* chillywilly - widescreen */
+}
 
 void WriteEEProm (void)
 {
@@ -1499,8 +1546,8 @@ void WriteEEProm (void)
 	eeprombuffer[4] = musicvolume;
 	eeprombuffer[5] = controltype;
 	eeprombuffer[6] = maxlevel;
-    eeprombuffer[7] = anamorphicview ? 1 : 0; /* chillywilly - widescreen */
-    eeprombuffer[8] = 0;
+	eeprombuffer[7] = anamorphicview ? 1 : 0; /* chillywilly - widescreen */
+	eeprombuffer[8] = 0;
 	eeprombuffer[EEWORDS-1] = 12345;
 	
 	for (i=0 ; i<EEWORDS-1 ; i++)

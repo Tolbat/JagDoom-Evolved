@@ -70,8 +70,16 @@ ALT_SAMPLECOUNT	.equr	r23
 int_1:
 	load	(ALT_RISC_FLAGS),ALT_FLAGSTEMP	; get current flags
 ; start load of sample from external memory
-	loadw	(ALT_SAMPLE_P),ALT_SAMPLE
-	addqmod	#2,ALT_SAMPLE_P				; bump sample pos after getting flags
+	loadw	(ALT_SAMPLE_P),ALT_SAMPLE		; music lane
+	addqmod	#2,ALT_SAMPLE_P					; bump sample pos
+	shlq	#16,ALT_SAMPLE
+	loadw	(ALT_SAMPLE_P),ALT_SCRATCH		; sfx lane
+	addqmod	#2,ALT_SAMPLE_P					; bump sample pos
+	shlq	#16,ALT_SCRATCH
+	sharq	#16,ALT_SAMPLE
+	sharq	#16,ALT_SCRATCH
+ 	add		ALT_SCRATCH,ALT_SAMPLE
+ 	sat16s	ALT_SAMPLE						; mixed music and sfx											  
  	
 ; start interrupt cleanup
 	bclr	#3,ALT_FLAGSTEMP			; clear IMASK
@@ -120,7 +128,7 @@ _dspbase_init::
 	moveq	#0,ALT_SAMPLECOUNT
 	
 	movei	#MODMASK,scratch
-	movei	#$ffffe000,scratch2
+	movei	#$ffffc000,scratch2	
 	store	scratch2,(scratch)		; set up for 16k circular buffers
 	
 	move	ALT_STACKRESET,r31				; in register bank 0	

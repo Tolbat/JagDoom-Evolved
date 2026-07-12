@@ -1,32 +1,17 @@
-/* s_sound.c */
+/* tolbat s_sound.c */
 #include "doomdef.h"
 #include "music.h"
-#ifndef EXTERN_BUFFER_SIZE
-#ifdef EXTERNALQUADS
-#define EXTERN_BUFFER_SIZE (EXTERNALQUADS * 32)
-#else
-#define EXTERN_BUFFER_SIZE 0x4000
-#endif
-#endif
 
-#ifndef EXTERN_BUFFER_SAMPLES
-#define EXTERN_BUFFER_SAMPLES (EXTERN_BUFFER_SIZE / 2)
-#endif
-
-/* Let d_main.c know whether to wait on DSP this frame (SFX only sets this). */
-int dsp_should_wait = 0;
-
+#define EXTERN_BUFFER_SIZE (EXTERNALQUADS*32/2)
 sfxchannel_t    sfxchannels[SFXCHANNELS];
-
-boolean         channelschanged;    /* set by S_StartSound to signal */
-                                    /* update to remix speculative samples */
 
 int             finalquad;          /* the last quad mixed by update. */
                                     
-int             sfxvolume = 128;    /* range 0 - 255 */
-int             musicvolume = 128;  /* range 0 - 255 */
-int             oldsfxvolume = 128; /* to detect transition to sound off */
-int             oldmusvolume = 128; /* mirror musicvolume for transition tracking */
+int             sfxvolume = 132;    /* range 0 - 255 */
+int             musicvolume = 100;  /* range 0 - 255 */
+int             oldsfxvolume = 132; /* to detect transition to sound off */
+int             oldmusvolume = 100; /* mirror musicvolume for transition tracking */
+
 int				soundtics;			/* time spent mixing sounds */
 int				soundstarttics;		/* time S_Update started */
 
@@ -41,8 +26,8 @@ channel_t       music_channels[10];	/* master music channel list */
 
 int             musictime;			/* internal music time, follows samplecount */
 int             next_eventtime;		/* when next event will occur */
-static int last_music_id = -1;      /* Remember what to resume after a mute */
-static int last_music_loop = 0;
+
+
 unsigned char   *music;				/* pointer to current music data */
 unsigned char   *music_start;		/* current music start pointer */
 unsigned char   *music_end;			/* current music end pointer */
@@ -52,6 +37,8 @@ int             samples_per_midiclock;	/* multiplier for midi clocks */
 
 int				musictics = 0;
 
+int             curmid, curlp;      /* last music id/looping requested for volume on/off */
+static int      last_sfx_start[NUMSFX];	/* gametic when each throttled SFX last started */
 
 #define abs(x) ((x)<0 ? -(x) : (x))
 
@@ -101,8 +88,9 @@ void S_Init(void)
 	D_memset(music_channels, 0, sizeof(music_channels));
 	musictime = 0;
 	next_eventtime = 0;
-/*	S_StartSong(1,1); */
-  
+
+
+	S_Clear();		   
 }
 
 
@@ -114,20 +102,132 @@ void S_Init(void)
 ==================
 */
 
+
 void S_Clear (void)
 {
-    if (!soundbuffer) return;
-    D_memset (sfxchannels,0,sizeof(sfxchannels));
-#ifdef EXTERNALQUADS
-    D_memset (soundbuffer,0,EXTERNALQUADS*32);
-#else
-    D_memset (soundbuffer,0,0x4000);
-#endif
+	D_memset (sfxchannels,0,sizeof(sfxchannels));
+	D_memset (last_sfx_start,0,sizeof(last_sfx_start));
+	D_memset (soundbuffer,0,0x4000);
 }
+
+static void S_ClearSfxLane (void)
+{
+    short   *dest;
+    int     count;
+
+    dest = ((short *)soundbuffer) + 1;
+    count = EXTERN_BUFFER_SIZE;
+
+    while (count--)
+    {
+        *dest = 0;
+        dest += 2;
+    }
+}
+
+static void S_ClearMusicLane (void)
+{
+    short   *dest;
+    int     count;
+
+    dest = (short *)soundbuffer;
+    count = EXTERN_BUFFER_SIZE;
+
+    while (count--)
+    {
+        *dest = 0;
+        dest += 2;
+    }
+}
+
+/*
+==================
+=
+= S_RestartSounds
+=
+==================
+*/
 
 void S_RestartSounds (void)
 {
 }
+
+/*
+==================
+=
+= S_IsMusicSuppressedAmbient
+=
+= Returns true for low-value ambient sounds that should not play over music.
+=
+==================
+*/
+
+static boolean S_IsMusicSuppressedAmbient(int sound_id)
+{
+	switch (sound_id)
+	{
+	case sfx_bgact:
+	case sfx_dmact:
+	case sfx_posact:
+		return true;
+
+	default:
+		break;
+	}
+
+	return false;
+}
+
+
+/*
+==================
+=
+= S_ShouldThrottleMusicSfx
+=
+= Limits rapid repeats of selected combat sounds while music is playing.
+= The first sound still plays; only repeats inside the delay window are skipped.
+=
+==================
+*/
+
+static boolean S_ShouldThrottleMusicSfx(int sound_id)
+{
+	int delay;
+	int elapsed;
+
+	if (!music || !musicvolume)
+		return false;
+
+	if (sound_id <= sfx_None || sound_id >= NUMSFX)
+		return false;
+
+	switch (sound_id)
+	{
+	case sfx_firsht:
+	case sfx_sgtatk:
+	case sfx_claw:
+	case sfx_firxpl:
+	case sfx_dmpain:
+	case sfx_popain:
+	case sfx_barexp:
+	case sfx_slop:
+		delay = 2;
+		break;
+
+	default:
+		return false;
+	}
+
+	elapsed = gametic - last_sfx_start[sound_id];
+
+	if (last_sfx_start[sound_id] && elapsed < delay)
+		return true;
+
+	last_sfx_start[sound_id] = gametic;
+	return false;
+}
+
+
 
 /*
 ==================
@@ -142,12 +242,19 @@ void S_StartSound(mobj_t *origin, int sound_id)
 #ifdef JAGUAR
 	sfxchannel_t	*channel, *newchannel;
 	int 			i;
+	int			currentquad;
 	int 		dist_approx;
 	player_t 	*player;
 	int 		dx, dy;
 	short		vol;
 	sfxinfo_t	*sfx;
 
+	if (!sfxvolume)
+		return;
+
+	if (sound_id <= sfx_None || sound_id >= NUMSFX)
+		return;
+		
 /* */
 /* spatialize */
 /* */
@@ -166,13 +273,21 @@ void S_StartSound(mobj_t *origin, int sound_id)
 		vol = 127 - vol;
 	}
 
-
 /* Get sound effect data pointer */
 	sfx = &S_sfx[sound_id];
-    /* Guard: missing/unloaded sample data */
-    if (!sfx->md_data)
-        return;
-	
+	if (!sfx->md_data)
+		return;
+
+	if (music && musicvolume && S_IsMusicSuppressedAmbient(sound_id))
+		return;
+
+	if (S_ShouldThrottleMusicSfx(sound_id))
+		return;
+
+	currentquad = samplecount >> 3;
+	if (finalquad < currentquad)
+		finalquad = currentquad;
+
 	newchannel = NULL;
 	
 /* reject sounds started at the same instant and singular sounds */
@@ -223,12 +338,8 @@ gotchannel:
 	newchannel->stopquad = finalquad + (sfx->md_data->samples>>2);
 	newchannel->source = (int *)&sfx->md_data->data;	
 	newchannel->volume = vol * (short)sfxvolume;
-/*	channelschanged = true;   Signal S_UpdateSounds to mix this SFX */
 #endif
 }
-
-
-
 
 
 /*
@@ -247,8 +358,6 @@ void S_UpdateSounds(void)
 #ifdef JAGUAR
 
 	int st;
-	
-    dsp_should_wait = 0;   /* default: don't wait this frame unless SFX actually mixed */
 
 /* */
     /* If sound was just turned off, clear out the buffer.
@@ -260,7 +369,7 @@ void S_UpdateSounds(void)
 		{
             /* sound just turned off, clear buffer */
 			oldsfxvolume = 0;
-			S_Clear();
+			S_ClearSfxLane();
 		}
 	}
 	else
@@ -275,22 +384,29 @@ void S_UpdateSounds(void)
 	{
 		if (oldmusvolume)
 		{
-			oldmusvolume = 0;
-			/* Falling edge: stop music once. (No shared-buffer wipe.) */
-			S_StopSong();
-		}
-	}
-	else
-	{
-		if (!oldmusvolume)
-		{
-			oldmusvolume = musicvolume;
-			/* Rising edge: if music was stopped, resume the last track */
-			if (!music && last_music_id >= 0)
-				S_StartSong(last_music_id, last_music_loop);
-		}
-	}
+            /* music just turned off */
+            oldmusvolume = 0;
+									   
+            S_StopSong();
+        }
 
+		/* make sure finalquad doesn't fall behind while music off */
+        if (finalquad < (samplecount >> 3) - EXTERNALQUADS)
+        {
+			finalquad = (samplecount >> 3) - 100;
+			sfxsample = finalquad << 3;
+		}
+    }
+    else
+    {
+        if (!oldmusvolume)
+            S_StartSong(curmid, curlp); /* just turned on, restart music */
+        oldmusvolume = musicvolume;
+																 
+									
+												
+   
+    }
 	
 	soundstarttics = samplecount;		/* for timing calculations */
 
@@ -298,84 +414,69 @@ void S_UpdateSounds(void)
 /* run the mixing in parallel on the dsp */
 /*	 */
 
-/* Run the mixing in parallel on the DSP */
-if (music)
-{
-    if (!musictime)
-        musictime = next_eventtime = samplecount + EXTERN_BUFFER_SAMPLES/2;
+										   
+	if (music)
+	{
+		if (!musictime)
+			musictime = next_eventtime = samplecount + EXTERN_BUFFER_SIZE/2;
 
-    while (samplecount - musictime > EXTERN_BUFFER_SAMPLES)
-    {
-        musictime     += EXTERN_BUFFER_SAMPLES;
-        next_eventtime += EXTERN_BUFFER_SAMPLES;
-    }
+		while (samplecount - musictime > EXTERN_BUFFER_SIZE)
+		{
+			musictime += EXTERN_BUFFER_SIZE;
+			next_eventtime += EXTERN_BUFFER_SIZE;
+		}
 
-    st = samplecount;
-    DSPFunction(&music_dspcode);
-    musictics = samplecount - st;
-}
+		st = samplecount;
+		DSPFunction (&music_dspcode);
+		musictics = samplecount - st; /* how long it took to generate the music */
+	}
 
-/* SFX mixing is independent of music; only runs if SFX is enabled */
-if (sfxvolume)
-{
-    st = samplecount;
-    dspfinished  = 0x1234;
-    dspcodestart = (int)&sfx_start;
-    DSPFunction(&sfx_start);
-    soundtics = samplecount - st;  /* time to mix SFX */
-    dsp_should_wait = 1;           /* tell main loop it may wait this frame */
-}
+
+/* SFX mixing is independent of music; run when SFX are enabled */
+	if (sfxvolume)
+	{
+		st = samplecount;
+		dspfinished = 0x1234;
+		dspcodestart = (int)&sfx_start;
+		DSPFunction(&sfx_start);
+		soundtics = samplecount - st;
+	}
 #endif
 }
 
-
 void S_StartSong(int music_id, int looping)
 {
-    int lump;  /* declarations must come before any statements */
-    /* Record the current song for auto-resume after mute */
-    last_music_id = music_id;
-    last_music_loop = looping;
-    /* Guard against double-start: stop any previous song cleanly */
-    if (music && music_memory)
+	int lump;
+
+    curmid = music_id;
+    curlp = looping;
+	next_eventtime = musictime;
+	musictime = 0;
+	samples_per_midiclock = 0;
+    if (musicvolume)
     {
-        S_StopSong();
+        lump = W_GetNumForName(S_music[music_id].name);
+        music_memory = music = 
+            (unsigned char *) W_CacheLumpNum(lump, PU_STATIC);
+        music_start = looping ? music : 0;
+        music_end = (unsigned char *) music + lumpinfo[lump].size ;
+        sfxsample = musictime; /* Align SFX with music start */
     }
-
-    /* Keep transition tracker in sync with current volume */
-    oldmusvolume = musicvolume;		  
-					
-    next_eventtime = musictime;
-    musictime = 0;
-    samples_per_midiclock = 0;
-
-	 
-    lump = W_GetNumForName(S_music[music_id].name);
-    music_memory = music =
-        (unsigned char *) W_CacheLumpNum(lump, PU_STATIC);
-    music_start = looping ? music : 0;
-    music_end = (unsigned char *) music + lumpinfo[lump].size;
-
-    sfxsample = musictime; /* Align SFX with music start */
+    else
+    {
+        music_memory = music = 0;
+        sfxsample = 0;
+        S_ClearMusicLane();
+    }
 }
 
 void S_StopSong(void)
 {
-    /* If music is already stopped or we never allocated music_memory, exit safely */
-    if (!music || !music_memory)
+    if (music)
     {
-        music = 0;
-        return;
+        Z_Free (music_memory);
+        music = 0;							/* prevent the DSP from running */
     }
 
-    /* Free the music buffer and mark music as stopped so the DSP path won’t run */
-    Z_Free(music_memory);
-    music_memory = 0;
-    music = 0;
-
-    /* Clear the music/SFX external buffer once to prevent stale samples */
-#ifdef EXTERNALQUADS
-    D_memset(soundbuffer, 0, EXTERNALQUADS * 32);
-#else
-    D_memset(soundbuffer, 0, 0x4000);
-#endif
+	S_ClearMusicLane();
 }

@@ -10,8 +10,41 @@
 
 extern  int     cx, cy;
 extern  int     sfxvolume;      /* range from 0 to 255 */
+extern  int     musicvolume;    /* range from 0 to 255 */
 extern  int     controltype;    /* 0 to 5 */
-extern  boolean rotary_control_enabled;
+
+#define NUMSPECTRESTYLES 10
+
+int     spectrestyle = 0;
+int     spectredvcmd = 0x41260F09;
+
+int spectredvcmds[NUMSPECTRESTYLES] =
+{
+    0x41260F09,     /* Green Goblin */
+    0x41102F09,     /* Purple People Eater */
+    0x40404F09,     /* Blue Beast */
+    0x00024F09,     /* Neon Nemesis */
+    0x44D04F09,     /* Swamp */
+	0x41A02F09,     /* Halloween */
+	0x40E00F09,     /* Toxic */
+	0x41600F09,     /* Slimer */
+	0x41115F09,     /* Disco */
+	0x46402F09      /* Black*/
+};
+
+char spectrenames[NUMSPECTRESTYLES][16] =
+{
+    "Goblin",
+    "Magenta",
+    "Sapphire",
+    "Neon",
+    "Swamp",
+	"Pumpkin",
+	"Toxic",
+	"Slimer",
+	"Disco",
+	"Void"
+};
 
 extern void print (int x, int y, char *string);
 extern void IN_DrawValue(int x,int y,int value);
@@ -36,55 +69,59 @@ typedef enum
 
 typedef enum
 {
-    widescrn,           /* Page 1 */
+    widescrn,
     soundvol,
     musicvol,
+    spectre,
     controls,
-    placeholder_one,    /* Page 2 */
-    placeholder_two,
-    rotary_toggle,
-    placeholder_four,
-    future_use_one,     /* Page 3 */
-    future_use_two,
-    future_use_three,
-    future_use_four,
     NUMMENUITEMS
 } menupos_t;
 
 menupos_t   cursorpos;
-int         currentpage;    /* Added: 0 = first page, 1 = second page, 2 = third page */
 
 typedef struct
 {
     int     x;
     int     y;
     boolean hasslider;
-    char    name[20];
+    char    name[32];
 } menuitem_t;
 
-menuitem_t menuitem[12];  /* Modified: Increased size to 12 for 3 pages with 4 items each */
- 
+menuitem_t menuitem[NUMMENUITEMS];
+
+void O_SetSpectreStyle (void)
+{
+    if (spectrestyle < 0)
+        spectrestyle = NUMSPECTRESTYLES - 1;
+    if (spectrestyle >= NUMSPECTRESTYLES)
+        spectrestyle = 0;
+
+    spectredvcmd = spectredvcmds[spectrestyle];
+}
+
 typedef struct
 {
     int curval;
     int maxval;
 } slider_t;
 
-slider_t slider[12];  /* Modified: Increased size to 12 to match menuitem count */
+slider_t slider[NUMMENUITEMS];
 
 int     cursorframe, cursorcount;
 int     movecount;
+boolean menudirty;
 
 jagobj_t    *uchar[52];
+
 jagobj_t    *o_cursor1, *o_cursor2;
 jagobj_t    *o_slider, *o_slidertrack;
 
 char buttona[NUMCONTROLOPTIONS][8] =
-		{"Speed","Speed","Fire","Fire","Use","Use"};
-char buttonb[NUMCONTROLOPTIONS][8] = 
-		{"Fire","Use ","Speed","Use","Speed","Fire"};
+        {"Speed","Speed","Fire","Fire","Use","Use"};
+char buttonb[NUMCONTROLOPTIONS][8] =
+        {"Fire","Use ","Speed","Use","Speed","Fire"};
 char buttonc[NUMCONTROLOPTIONS][8] =
-		{"Use","Fire","Use","Speed","Fire","Speed"};
+        {"Use","Fire","Use","Speed","Fire","Speed"};
 
 unsigned configuration[NUMCONTROLOPTIONS][3] =
 {
@@ -93,26 +130,32 @@ unsigned configuration[NUMCONTROLOPTIONS][3] =
     {BT_B, BT_A, BT_C},
     {BT_C, BT_A, BT_B},
     {BT_B, BT_C, BT_A},
-    {BT_C, BT_B, BT_A} 
+    {BT_C, BT_B, BT_A}
 };
 
-char anamorphic[2][4] =	{"Off","On"};
-char onoff[2][4] = {"Off","On"};
-
-boolean rotary_control_enabled = false;
+char anamorphic[2][4] =
+{
+    "Off",
+    "On"
+};
 
 boolean initmathtbl = true;
-
 boolean anamorphicview;
-int stretch;
+int     stretch;
 fixed_t stretchscale;
+
+void O_SetStretch (void)
+{
+    stretch = anamorphicview ? 28*8 : 22*8;
+    stretchscale = anamorphicview ? 183501 : 144179;
+}
 
 void O_SetButtonsFromControltype (void)
 {
     BT_SPEED = configuration[controltype][0];
     BT_ATTACK = configuration[controltype][1];
-    BT_USE = configuration[controltype][2]; 
-    BT_STRAFE = configuration[controltype][2]; 
+    BT_USE = configuration[controltype][2];
+    BT_STRAFE = configuration[controltype][2];
 }
 
 /* */
@@ -120,23 +163,17 @@ void O_SetButtonsFromControltype (void)
 /* */
 void O_DrawControl(void)
 {
-    /* Modified: Only draw on page 1 to keep pages 2 and 3 blank */
-    if (currentpage == 0)
-    {
-        EraseBlock(menuitem[widescrn].x + 40, menuitem[widescrn].y + 20, 60, 20);
-        print(menuitem[widescrn].x + 40, menuitem[widescrn].y + 20, anamorphic[anamorphicview ? 1 : 0]);
+    EraseBlock(menuitem[widescrn].x + 180, menuitem[widescrn].y, 70, 20);
+    print(menuitem[widescrn].x + 180, menuitem[widescrn].y, anamorphic[anamorphicview ? 1 : 0]);
 
-        EraseBlock(menuitem[controls].x + 40, menuitem[controls].y + 20, 90, 80);
-        print(menuitem[controls].x + 40, menuitem[controls].y + 20, buttona[controltype]);
-        print(menuitem[controls].x + 40, menuitem[controls].y + 40, buttonb[controltype]);
-        print(menuitem[controls].x + 40, menuitem[controls].y + 60, buttonc[controltype]);
-    }
+    EraseBlock(menuitem[spectre].x + 150, menuitem[spectre].y, 120, 20);
+    print(menuitem[spectre].x + 150, menuitem[spectre].y, spectrenames[spectrestyle]);
 
+    EraseBlock(menuitem[controls].x + 40, menuitem[controls].y + 20, 90, 80);
+    print(menuitem[controls].x + 40, menuitem[controls].y + 20, buttona[controltype]);
+    print(menuitem[controls].x + 40, menuitem[controls].y + 40, buttonb[controltype]);
+    print(menuitem[controls].x + 40, menuitem[controls].y + 60, buttonc[controltype]);
 /*  IN_DrawValue(30, 20, controltype); */
-    
-    O_SetButtonsFromControltype();
-    stretch = anamorphicview ? 28*8 : 22*8;
-    stretchscale = anamorphicview ? 183501 : 144179;
 }
 
 /*
@@ -151,100 +188,63 @@ void O_Init (void)
     int i, l;
 
 /* the eeprom has set controltype, so set buttons from that */
-    O_SetButtonsFromControltype();
-
-/* the eeprom has widescreen setting */
-    stretch = anamorphicview ? 28*8 : 22*8;
-    stretchscale = anamorphicview ? 183501 : 144179;
+    O_SetButtonsFromControltype ();
+	
+/* the eeprom has set anamorphicview, so set render stretch from that */
+    O_SetStretch ();
 
 /* cache all needed graphics */
-    o_cursor1 = W_CacheLumpName("M_SKULL1", PU_STATIC);
-    o_cursor2 = W_CacheLumpName("M_SKULL2", PU_STATIC);
-    o_slider = W_CacheLumpName("O_SLIDER", PU_STATIC);
-    o_slidertrack = W_CacheLumpName("O_STRACK", PU_STATIC);
+    o_cursor1 = W_CacheLumpName ("M_SKULL1",PU_STATIC);
+    o_cursor2 = W_CacheLumpName ("M_SKULL2",PU_STATIC);
+    o_slider = W_CacheLumpName ("O_SLIDER", PU_STATIC);
+    o_slidertrack = W_CacheLumpName ("O_STRACK", PU_STATIC);
 
-    l = W_GetNumForName("CHAR_065");
+    l = W_GetNumForName ("CHAR_065");
     for (i = 0; i < 52; i++)
         uchar[i] = W_CacheLumpNum(l+i, PU_STATIC);
 
-/*  initialize variables */
+/* initialize variables */
     cursorcount = 0;
     cursorframe = 0;
     cursorpos = 0;
-    currentpage = 0;  /* Added: Initialize currentpage to start on page 1 */
+    movecount = 0;
+    menudirty = true;
 
-/* Page 1: Original options (functionality unchanged*/
-/*  chillywilly: anamorphic widescreen */
-    D_strncpy(menuitem[widescrn].name, "Widescreen", 10);
-	menuitem[widescrn].x = 85;
-	menuitem[widescrn].y = 40;
+/* anamorphic widescreen */
+	D_strncpy(menuitem[widescrn].name, "Widescreen", 11);
+	menuitem[widescrn].x = 45;
+	menuitem[widescrn].y = 28;
 	menuitem[widescrn].hasslider = false;
 
-    D_strncpy(menuitem[soundvol].name, "Sfx Vol", 7); /* Fixed CEF */
+/* sound effects volume */
+	D_strncpy(menuitem[soundvol].name, "Sfx Vol", 8);
 	menuitem[soundvol].x = 45;
-	menuitem[soundvol].y = 80;
+	menuitem[soundvol].y = 52;
 	menuitem[soundvol].hasslider = true;
+	slider[soundvol].maxval = 16;
+	slider[soundvol].curval = 16 * sfxvolume / 255;
 
- 	slider[soundvol].maxval = 16;
-	slider[soundvol].curval = 16*sfxvolume/255;
-
-/*  chillywilly: music volume */
-    D_strncpy(menuitem[musicvol].name, "Mus Vol", 7);
+/* music volume */
+	D_strncpy(menuitem[musicvol].name, "Mus Vol", 8);
 	menuitem[musicvol].x = 45;
-	menuitem[musicvol].y = 100;
+	menuitem[musicvol].y = 72;
 	menuitem[musicvol].hasslider = true;
+	slider[musicvol].maxval = 16;
+	slider[musicvol].curval = 16 * musicvolume / 255;
 
- 	slider[musicvol].maxval = 16;
-	slider[musicvol].curval = 16*musicvolume/255;
+/* spectre style */
+	D_strncpy(menuitem[spectre].name, "Spectre", 8);
+	menuitem[spectre].x = 45;
+	menuitem[spectre].y = 96;
+	menuitem[spectre].hasslider = false;
+	O_SetSpectreStyle ();
 
-    D_strncpy(menuitem[controls].name, "  Controls", 10); /* Fixed CEF */
+/* controls */
+	D_strncpy(menuitem[controls].name, "Controls", 9);
 	menuitem[controls].x = 85;
-	menuitem[controls].y = 120;
+	menuitem[controls].y = 116;
 	menuitem[controls].hasslider = false;
-
-/* Page 2: Placeholder items with even spacing and aligned x positions */
-    D_strncpy(menuitem[placeholder_one].name, "hud options", 15);
-    menuitem[placeholder_one].x = 45; /* Aligned to left side */
-    menuitem[placeholder_one].y = 40;
-    menuitem[placeholder_one].hasslider = false;
-
-    D_strncpy(menuitem[placeholder_two].name, "mouse control", 15);
-    menuitem[placeholder_two].x = 45; /* Aligned to left side */
-    menuitem[placeholder_two].y = 70;
-    menuitem[placeholder_two].hasslider = false;
-
-	D_strncpy(menuitem[rotary_toggle].name, "rotary control", 14);
-	menuitem[rotary_toggle].x = 45;
-	menuitem[rotary_toggle].y = 100;
-	menuitem[rotary_toggle].hasslider = false;
-
-    D_strncpy(menuitem[placeholder_four].name, "placeholder", 16);
-    menuitem[placeholder_four].x = 45; /* Aligned to left side */
-    menuitem[placeholder_four].y = 140;
-    menuitem[placeholder_four].hasslider = false;
-
-/* Page 3: Placeholder items with even spacing and aligned x positions */
-    D_strncpy(menuitem[future_use_one].name, "future use", 14);
-    menuitem[future_use_one].x = 45; /* Aligned to left side */
-    menuitem[future_use_one].y = 40;
-    menuitem[future_use_one].hasslider = false;
-
-    D_strncpy(menuitem[future_use_two].name, "future use two", 14);
-    menuitem[future_use_two].x = 45; /* Aligned to left side */
-    menuitem[future_use_two].y = 70;
-    menuitem[future_use_two].hasslider = false;
-
-    D_strncpy(menuitem[future_use_three].name, "future use three", 16);
-    menuitem[future_use_three].x = 45; /* Aligned to left side */
-    menuitem[future_use_three].y = 100;
-    menuitem[future_use_three].hasslider = false;
-
-    D_strncpy(menuitem[future_use_four].name, "future use four", 15);
-    menuitem[future_use_four].x = 45; /* Aligned to left side */
-    menuitem[future_use_four].y = 130;
-    menuitem[future_use_four].hasslider = false;
-}
-
+}	
 /*
 ==================
 =
@@ -253,33 +253,35 @@ void O_Init (void)
 = Button bits can be eaten by clearing them in ticbuttons[playernum]
 ==================
 */
+
 void O_Control (player_t *player)
 {
-    int buttons, oldbuttons;
-    
+    int     buttons, oldbuttons;
+
     buttons = ticbuttons[playernum];
     oldbuttons = oldticbuttons[playernum];
-    
-    if ((buttons & BT_OPTION) && !(oldbuttons & BT_OPTION))
+
+    if ( (buttons & BT_OPTION) && !(oldbuttons & BT_OPTION) )
     {
-        /* Fixed: Ensure menu state is initialized when entering from title screen */
-        cursorpos = 0;  
-        currentpage = 0;
+        cursorpos = 0;
         player->automapflags ^= AF_OPTIONSACTIVE;
         if (player->automapflags & AF_OPTIONSACTIVE)
-            DoubleBufferSetup();
+        {
+            DoubleBufferSetup ();
+            menudirty = true;
+        }
         else
-            WriteEEProm(); /* save new settings */
+            WriteEEProm ();     /* save new settings */
     }
-    if (!(player->automapflags & AF_OPTIONSACTIVE))
+    if ( !(player->automapflags & AF_OPTIONSACTIVE) )
         return;
 
 /* clear buttons so game player isn't moving around */
-    ticbuttons[playernum] &= BT_OPTION; /* leave option status alone */
+    ticbuttons[playernum] &= BT_OPTION;  /* leave option status alone */
 
     if (playernum != consoleplayer)
         return;
-        
+
 /* animate skull */
     if (++cursorcount == 4)
     {
@@ -288,123 +290,113 @@ void O_Control (player_t *player)
     }
 
 /* check for movement */
-    if (!(buttons & (JP_UP | JP_DOWN | JP_LEFT | JP_RIGHT)))
-        movecount = 0; /* move immediately on next press */
+    if (! (buttons & (JP_UP|JP_DOWN|JP_LEFT|JP_RIGHT) ) )
+        movecount = 0;      /* move immediately on next press */
     else
     {
-	if (buttons & JP_RIGHT)
-	{
-		if (menuitem[cursorpos].hasslider)
-		{
-			slider[cursorpos].curval++;
-			if (slider[cursorpos].curval > slider[cursorpos].maxval)
-				slider[cursorpos].curval = slider[cursorpos].maxval;
-
-			if (cursorpos == soundvol)
-			{
-				sfxvolume = 255 * slider[soundvol].curval / slider[soundvol].maxval;
-				S_StartSound(NULL, sfx_pistol);
-			}
-			else if (cursorpos == musicvol)
-			{
-				musicvolume = 255 * slider[musicvol].curval / slider[musicvol].maxval;
-			}
-		}
-
-		if (cursorpos == rotary_toggle)
-		{
-			rotary_control_enabled = true;
-		}
-	}
-
-	if (buttons & JP_LEFT)
-	{
-		if (menuitem[cursorpos].hasslider)
-		{
-			slider[cursorpos].curval--;
-			if (slider[cursorpos].curval < 0)
-				slider[cursorpos].curval = 0;
-
-			if (cursorpos == soundvol)
-			{
-				sfxvolume = 255 * slider[soundvol].curval / slider[soundvol].maxval;
-				S_StartSound(NULL, sfx_pistol);
-			}
-			else if (cursorpos == musicvol)
-			{
-				musicvolume = 255 * slider[musicvol].curval / slider[musicvol].maxval;
-			}
-		}
-
-    if (cursorpos == rotary_toggle)
-    {
-        rotary_control_enabled = false;
-    }
-}
-
-
         if (movecount == MOVEWAIT)
-            movecount = 0; /* repeat move */
+            movecount = 0;      /* repeat move */
         if (++movecount == 1)
         {
-            /* Define page boundaries for 4 items per page */
-            int first_item = currentpage * 4;
-            int last_item = first_item + 3;
-
             if (buttons & JP_DOWN)
             {
                 cursorpos++;
-                if (cursorpos > last_item)
-                {
-                    /* Cycle through three pages */
-                    currentpage = (currentpage + 1) % 3; /* 0 -> 1 -> 2 -> 0 */
-                    cursorpos = currentpage * 4; /* First item of new page */
-                }
+                if (cursorpos == NUMMENUITEMS)
+                    cursorpos = 0;
             }
+
             if (buttons & JP_UP)
             {
-                /* Check if we're on the first item of the page */
-                if (cursorpos == first_item)
-                {
-                    /* Wrap to the previous page */
-                    currentpage = (currentpage - 1 + 3) % 3; /* 2 -> 1 -> 0 -> 2 */
-                    cursorpos = (currentpage * 4) + 3; /* Last item of new page */
-                }
-                else
-                {
-                    /* Move up within the same page */
-                    cursorpos--;
-                    /* Ensure cursorpos doesn't go below the first item of the page */
-                    if (cursorpos < first_item)
-                        cursorpos = first_item;
-                }
+                cursorpos--;
+                if (cursorpos == -1)
+                    cursorpos = NUMMENUITEMS-1;
             }
+
             if (buttons & JP_RIGHT)
             {
-                if (cursorpos == controls)
+                if (menuitem[cursorpos].hasslider)
                 {
-                    controltype++;
-                    if(controltype >= NUMCONTROLOPTIONS)
-                        controltype = NUMCONTROLOPTIONS - 1;
+                    if (slider[cursorpos].curval < slider[cursorpos].maxval)
+                    {
+                        slider[cursorpos].curval++;
+                        if (cursorpos == soundvol)
+                        {
+                            sfxvolume = 255*slider[soundvol].curval / slider[soundvol].maxval;
+                            S_StartSound (NULL, sfx_pistol);
+                        }
+                        else if (cursorpos == musicvol)
+                        {
+                            musicvolume = 255*slider[musicvol].curval / slider[musicvol].maxval;
+                        }
+                        menudirty = true;
+                    }
                 }
-                else if (cursorpos == widescrn)
+				
+				else if (cursorpos == widescrn)
                 {
                     anamorphicview = true;
                     initmathtbl = true;
+                    O_SetStretch ();
+                    menudirty = true;
+                }
+				
+                else if (cursorpos == spectre)
+                {
+                    spectrestyle++;
+                    O_SetSpectreStyle ();
+                    menudirty = true;
+                }
+                else if (cursorpos == controls)
+                {
+                    controltype++;
+                    if (controltype == NUMCONTROLOPTIONS)
+                        controltype = NUMCONTROLOPTIONS-1;
+                    O_SetButtonsFromControltype ();
+                    menudirty = true;
                 }
             }
+
             if (buttons & JP_LEFT)
             {
-                if (cursorpos == controls)
+                if (menuitem[cursorpos].hasslider)
                 {
-                    controltype--;
-                     if(controltype < 0)
-                        controltype = 0; 
+                    if (slider[cursorpos].curval > 0)
+                    {
+                        slider[cursorpos].curval--;
+                        if (cursorpos == soundvol)
+                        {
+                            sfxvolume = 255*slider[soundvol].curval / slider[soundvol].maxval;
+                            S_StartSound (NULL, sfx_pistol);
+                        }
+                        else if (cursorpos == musicvol)
+                        {
+                            musicvolume = 255*slider[musicvol].curval / slider[musicvol].maxval;
+                        }
+                        menudirty = true;
+                    }
                 }
-                else if (cursorpos == widescrn)
+                
+				else if (cursorpos == widescrn)
                 {
                     anamorphicview = false;
                     initmathtbl = true;
+                    O_SetStretch ();
+                    menudirty = true;
+                }
+				
+				else if (cursorpos == spectre)
+                {
+                    spectrestyle--;
+                    O_SetSpectreStyle ();
+                    menudirty = true;
+                }
+                else if (cursorpos == controls)
+                {
+                    controltype--;
+                    if (controltype == -1)
+                        controltype = 0;
+                    O_SetButtonsFromControltype ();
+                    menudirty = true;
                 }
             }
         }
@@ -413,64 +405,47 @@ void O_Control (player_t *player)
 
 void O_Drawer (void)
 {
-    int i;
-    int offset;
-    int first_item; /* Added: For multi-page rendering */
-    int relative_cursor; /* Added: For correct cursor positioning */
+    int     i;
+    int     offset;
 
-/* Modified: Clear a wider area for consistent background on all pages */
-    EraseBlock(16, 40, 300, 200); /* Covers menu items and sliders */
-
-/* Draw cursor using relative position within the current page */
-    first_item = currentpage * 4;
-    relative_cursor = cursorpos - first_item;
-    if (cursorframe)
-        DrawJagobj(o_cursor1, 20, menuitem[first_item + relative_cursor].y - 2);
-    else
-        DrawJagobj(o_cursor2, 20, menuitem[first_item + relative_cursor].y - 2);
-
-/* Draw menu */
-    print(104, 10, "Options");
-
-/* Draw only the items for the current page */
-    for (i = currentpage * 4; i <= currentpage * 4 + 3; i++)
+    if (menudirty)
     {
-        print(menuitem[i].x, menuitem[i].y, menuitem[i].name);  
-		
-	/* Print ON/OFF below the 'rotary controls' label */
-    if (i == rotary_toggle && currentpage == 1)
-        print(menuitem[i].x, menuitem[i].y + 20, onoff[rotary_control_enabled ? 1 : 0]);
+        EraseBlock(0, 0, 320, 200);
 
-        if (menuitem[i].hasslider == true)
+    /* Draw menu */
+        print(104, 10, "Options");
+
+        for (i = 0; i < NUMMENUITEMS; i++)
         {
-            DrawJagobj(o_slidertrack , menuitem[i].x + 112, menuitem[i].y + 2);
-            offset = (slider[i].curval * SLIDEWIDTH) / slider[i].maxval;
-            DrawJagobj(o_slider, menuitem[i].x + 117 + offset, menuitem[i].y + 2);
+            print(menuitem[i].x, menuitem[i].y, menuitem[i].name);
+
+            if (menuitem[i].hasslider == true)
+            {
+                DrawJagobj(o_slidertrack, menuitem[i].x + 112,
+                    menuitem[i].y + 2);
+                offset = (slider[i].curval * SLIDEWIDTH) /
+                    slider[i].maxval;
+                DrawJagobj(o_slider, menuitem[i].x + 117 + offset,
+                    menuitem[i].y + 2);
+            }
         }
 
-    }
-
-/* Draw control info only on page 1 */
-    if (currentpage == 0)
-    {
+    /* Draw control info */
         print(menuitem[controls].x + 10, menuitem[controls].y + 20, "A");
         print(menuitem[controls].x + 10, menuitem[controls].y + 40, "B");
         print(menuitem[controls].x + 10, menuitem[controls].y + 60, "C");
+
+        O_DrawControl();
+
+        menudirty = false;
     }
 
-    O_DrawControl();
+/* Erase old and Draw new cursor frame */
+    EraseBlock(16, 24, o_cursor1->width, 176);
+    if (cursorframe)
+        DrawJagobj(o_cursor1, 20, menuitem[cursorpos].y - 2);
+    else
+        DrawJagobj(o_cursor2, 20, menuitem[cursorpos].y - 2);
 
-/* debug stuff */
-#if 0
-    cx = 30;
-    cy = 40;
-    D_printf("Speed = %d", BT_SPEED);
-    cy = 60;
-    D_printf("Use/Strafe = %d", BT_SPEED);
-    cy = 80;
-    D_printf("Fire = %d", BT_SPEED);
-#endif
-/* end of debug stuff */
-
-    UpdateBuffer();
+    UpdateBuffer ();
 }

@@ -148,42 +148,42 @@ blitwait1:
     jr      NE,skip1
     nop
 
+; tolbat select draw command for normal sprites or menu-selected spectres
+
+    movei   #_spectredvcmd,r1
+    load    (r1),dv_cmd
 	
-;    movei   #$41002F09,dv_cmd   ; command if Purple People Eater -perfect purple translucent grey horns
-;    movei   #$41004F09,dv_cmd   ; command if Purple People Eater -darker
-;    movei   #$41202F09,dv_cmd   ; command if PPE v3	-Purple translucent and neons teal horns - teal toes
-;	 movei   #$41200F09,dv_cmd   ; command if PPE v3    - very similar to above - teal horns - teal toes
-;    movei   #$41242F09,dv_cmd   ; ppe v3 again or very similar 
-;    movei   #$41222F09,dv_cmd   ; pink and neon green with purple teeth not translucent - red horns 
-;	 movei   #$41224F09,dv_cmd   ; translucenct neon green  purple eyes and teeth, blue/purple horns
-    movei   #$41220F09,dv_cmd   ; Green translucent with dark purple horns
-;	 movei   #$41424F09,dv_cmd   ; translucenct neon green  purple eyes and teeth, blue/purple horns 
-;    movei   #$41202F01,dv_cmd   ; command if Swamp Thing	-solid Black + green with yellow teeth
-;    movei   #$00024F09,dv_cmd   ; command if Neon Nemesis	-neon yellow Green translucent + purple eyes
-;    movei   #$41002F01,dv_cmd   ; command if Void Spectre	-Fully solid black
-;    movei   #$41204F09,dv_cmd   ; command if Red and Purple transparent with yellow eyes
-;    movei   #$41000F08,dv_cmd   ; command if Buggy Ghost Gray / black
-;    movei   #$41005F08,dv_cmd   ; command if Static Flicke-Glitchy purple/blue static
-;    movei   #$00020F09,dv_cmd   ; command if Translucent black/green/purple not pretty
-;    movei   #$00022F09,dv_cmd   ; command if green and pink   also #$41422F09 (pink bottom neon green top - not translucenct)41262F09
-;    movei   #$41200F05,dv_cmd   ; Actual - teal and white with purple eyes and white horns - very cool tho
-;    movei   #$41003F0A,dv_cmd   ; Actual - very cool - blue to light blue translucenct depends on angle - can be hard to see which is good for spectre.  (magenta when shot)
+; old path -- users current optional spawns and description outdated but useful
+;    movei   #$41220F09,dv_cmd   ; PS1 Spectre - Green translucent with dark purple horns  - detail - movei   #$40420F09,dv_cmd same?  very light movei   #$4C120F09,dv_cmd 
+;    movei   #$41002F09,dv_cmd   ; Purple People Eater -perfect purple translucent grey horns - usable w detail
+;    movei   #$41A02F09,dv_cmd	 ; translucent orange - green horns yellow eyes - yellow teeth - usable for Halloween - 41A01F09 lighter w detail
+;    movei   #$41600F0C,dv_cmd 	 ; neon green semi translucent
+;    movei   #$41600F09,dv_cmd	 ; neon yellow/green translucent #$41640F09 #$41700F09  #$41601F09 41740F09
+;    movei   #$41C02F09,dv_cmd	 ; yellow wirh light gray teeth - orange horn - Sunshine - slightly transparent need more  - not useable
+;    movei   #$41202F01,dv_cmd   ; Swamp Thing	- solid greenish Teal and Black highlights with blue grey eyes and teeth  - not useable w detail
+;    movei   #$41002F01,dv_cmd   ; Void Spectre	- "solid black" no details - Chillys
+;    movei   #$41200F05,dv_cmd   ; teal (light blue with maybe a slight green) with white horns - Frost - useable not right color for DOom w detail
+;    movei   #$41202F09,dv_cmd   ; translucent purple with some pink translucent, neon green eyes. teal horns, yellow teeth  - semi useable w detail
+;    movei   #$41205F0A,dv_cmd	 ; woke spectre- jk spawn - not useable
+;    movei   #$41200F0C,dv_cmd   ; translucent red/pink, purple-ish in grey backdrop, neon green eyes w detail
+;    movei   #$41204F0C,dv_cmd   ; red - with neon purple, green yellow eyes, teal horns,- close to usable - semi usable w detail
+;    movei   #$00604F09,dv_cmd   ; teal skin solid, with dark highlights, grey horns, blue greu teeth and eyes with black pupils
+;    movei   #$48804F05,dv_cmd   ; redish pink with black translucent tops see screenshot3
+;    movei   #$48804F09,dv_cmd   ; neon blue translucent, purple translucent, BLACK translucent tops
+;    movei   #$44400F09,dv_cmd   ; solid black but the horns and eyes are see through!
+;    movei   #$48400F09,dv_cmd   ; STABLE Dark BLUE translucent spectre with purple horns and purple teeth
+;    movei   #$48200F09,dv_cmd   ; interesting - darker blue translucent, solid black top, horns translucent dark blue, and eyes
+;    movei   #$48604F09,dv_cmd   ; teal and grey solid with grey horns   ;     movei   #$48602F09,dv_cmd
+;    movei   #$48E04F09,dv_cmd	 ; neon green translucent with orange horns light purple eyes and teeth
+;	 movei   #$40404F09,dv_cmd   ; STABLE BLUE translucent (your “perfect blue”)
 
 
 
-
-
-;chilly blending
     moveq   #0,r1
 	movei	#$f02270,r0         ; intensity inc
     nop
-
-;tolbats blending 
-;    movei   #32,r1              ; Moderate intensity to enhance translucency
-;    movei   #$f02270,r0         ; intensity inc
-;    nop
-
-    store   r1,(r0)
+	
+	store	r1,(r0)
     jr      NE,skip2
     nop
 
@@ -1426,6 +1426,7 @@ _spropening::
  .extern _gpucodestart
  .extern _samplecount
  .extern _ref9_start
+ .extern _spectredvcmd
 
 	.phrase
 	.68000

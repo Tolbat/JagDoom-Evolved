@@ -73,7 +73,7 @@ boolean P_CheckPosition (mobj_t *thing, fixed_t x, fixed_t y)
 	
 #ifdef JAGUAR
 {
-	extern	p_move_start;
+	extern	int p_move_start;
 	checkpostics += DSPFunction (&p_move_start);
 }
 #else
@@ -479,13 +479,13 @@ fixed_t P_AimLineAttack (mobj_t *t1, angle_t angle, fixed_t distance)
 #else
 	P_Shoot2 ();
 #endif
+
 	linetarget = (mobj_t *)DSPRead (&shootmobj);
 		
-	if (shootmobj)
-		return DSPRead(&shootslope);
+	if (linetarget)
+	return DSPRead(&shootslope);
 	return 0;
-}
- 
+ }
 
 /*
 =================

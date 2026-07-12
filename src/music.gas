@@ -72,11 +72,11 @@ sw_looppoint .equr	r22
 	movei	#_musictime,scratch2
 	load	(scratch2),sw_dest
 
-	shlq	#1,sw_dest
-	movei	#$1fff,scratch
+	shlq	#2,sw_dest					; 16-bit samples * 2 for interleave
+	movei	#$3fff,scratch
 	and		scratch,sw_dest
 	movei	#$1f0000,scratch
-	add		scratch,sw_dest				; sw_dest = extern_buffer[(musictime*2)&EXTERN_MASK]
+	add		scratch,sw_dest				; sw_dest = extern_buffer[(musictime*4)&EXTERN_MASK]
 	
 	movei	#_internal_buffer,sw_source
 	movei	#satloop,sw_looppoint
@@ -89,7 +89,7 @@ satloop:
 	sat16s	sw_sample                   ; saturate to 16 bits
 
 	storew	sw_sample,(sw_dest)
-	addqmod	#2,sw_dest
+	addqmod	#4,sw_dest					; leave every other word for sfx
 		
 	subq	#1,sw_samples
 	jump	NE,(sw_looppoint)

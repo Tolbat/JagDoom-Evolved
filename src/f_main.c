@@ -140,35 +140,19 @@ int		text_y;
 #define SPACEWIDTH	8
 #define NUMENDOBJ	28
 jagobj_t	*endobj[NUMENDOBJ];
-#if 0
+static int	f_saved_musicvolume;
 /* '*' = newline */
 char	endtextstring[] =
-	"you did it! by turning*"
-	"the evil of the horrors*"
-	"of hell in upon itself*"
-	"you have destroyed the*"
-	"power of the demons.**"
-	"their dreadful invasion*"
-	"has been stopped cold!*"
-	"now you can retire to*"
-	"a lifetime of frivolity.**"
-	"  congratulations!";
-#endif
-
-/* '*' = newline */
-char	endtextstring[] =
-	"     id software*"
-	"     salutes you!*"
+	" thank you for playing.*"
 	"*"
-	"  the horrors of hell*"
-	"  could not kill you.*"
-	"  their most cunning*"
-	"  traps were no match*"
-	"  for you. you have*"
-	"  proven yourself the*"
-	"  best of all!*"
+	" doom evolved was*"
+	" created for the*"
+	" atari jaguar community.*"
 	"*"
-	"  congratulations!";
+	" made for fun and*"
+	" shared with doom fans.*"
+	"*"
+	" see you in hell!";
 
 /*=============================================== */
 /* */
@@ -255,6 +239,12 @@ void F_Start (void)
 	int	i;
 	int	l;
 	
+	f_saved_musicvolume = musicvolume;
+	if (!musicvolume)
+	musicvolume = 96;
+	
+	S_StopSong ();
+	S_Clear ();
 	S_StartSong(2, 1);
 
 	status = fin_endtext;		/* END TEXT PRINTS FIRST */
@@ -286,6 +276,10 @@ void F_Stop (void)
 	
 	for (i = 0;i < NUMENDOBJ; i++)
 		Z_Free(endobj[i]);
+
+	S_StopSong ();
+	S_Clear ();
+	musicvolume = f_saved_musicvolume;
 }
 
 

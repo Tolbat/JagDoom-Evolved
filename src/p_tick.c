@@ -283,14 +283,11 @@ int P_Ticker (void)
 	;		/* wait for refresh to latch all needed data before */
 			/* running the next tick */
 
-#ifdef JAGAUR
-	while (DSPRead (&dspfinished) != 0xdef6)
-	;		/* wait for sound mixing to complete */
-#endif
+	/* DSP sound completion is waited for in MiniLoop after drawing. */
 
 	gameaction = ga_nothing;
 	
-	gametic++; 		 
+	gametic++;
  
 /* */
 /* check for pause and cheats */
@@ -484,9 +481,9 @@ void P_Start (void)
 	AM_Start ();
 	S_RestartSounds ();
     /* start level music */
-  /*  S_StartSong(((gamemap-1)%10)+1, 1);      correct music */
+    S_StartSong(((gamemap-1)%10)+1, 1);     /* correct music */
 	
-	S_StartSong((((gamemap + samplecount) * 3) % 10) + 1, 1);    /*random music*/   
+	/*S_StartSong((((gamemap + samplecount) * 3) % 10) + 1, 1); */   /*random music*/   
 
 #endif
 	players[0].automapflags = 0;
